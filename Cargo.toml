@@ -1,0 +1,18 @@
+[package]
+name = "rust_dos"
+version = "0.1.0"
+authors = ["Hayato Ohhashi <o8@vmm.dev>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# https://github.com/johnthagen/min-sized-rust
+[profile.release]
+strip = true
+codegen-units = 1
+lto = true
+opt-level = "z"
+# panic = "abort"
+
+[dependencies]
+rlibc = "1.0.0"
