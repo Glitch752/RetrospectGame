@@ -4,73 +4,131 @@
 
 extern crate alloc;
 
+use core::ops::{Add, Sub};
+
+use dos::graphics::{copy_framebuffer_to_screen, enter_graphics_mode, wait_for_vsync};
 use rust_dos::*;
 
 entry!(main);
 
-fn rotate(mul: i32, shift: i32, x: &mut i32, y: &mut i32) {
-    let mut old_x = *x;
-    *x -= mul * *y >> shift;
-    *y += mul * old_x >> shift;
-    old_x = 3145728 - *x * *x - *y * *y >> 11;
-    *x = *x * old_x >> 10;
-    *y = *y * old_x >> 10;
+struct Vec3 {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+impl Vec3 {
+    fn new(x: f32, y: f32, z: f32) -> Self {
+        Self { x, y, z }
+    }
+
+    fn dot(&self, other: &Self) -> f32 {
+        self.x * other.x + self.y * other.y + self.z * other.z
+    }
+}
+
+impl Add for Vec3 {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+        }
+    }
+}
+
+impl Sub for Vec3 {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+        }
+    }
+}
+
+struct Cube {
+    position: Vec3,
+    rotation: Vec3,
+    scale: Vec3,
+    color: Vec3,
+}
+
+// Mode 13h is 320x200 with 256 colors
+const SCREEN_WIDTH: usize = 320;
+const SCREEN_HEIGHT: usize = 200;
+const FOCAL_LENGTH: f32 = 1.0;
+const FOV: f32 = 1.0;
+
+// static mut Z: [i8; SCREEN_WIDTH * SCREEN_HEIGHT] = [i8::MAX; SCREEN_WIDTH * SCREEN_HEIGHT];
+static mut FRAMEBUFFER: [u8; SCREEN_WIDTH * SCREEN_HEIGHT] = [0; SCREEN_WIDTH * SCREEN_HEIGHT]; // 1 byte per pixel
+
+// fn display_point(point: Vec3) {
+//     // Transform into screen space
+//     let x = (point.x / point.z) * FOCAL_LENGTH + (SCREEN_WIDTH as f32 / 2.0);
+//     let y = (point.y / point.z) * FOCAL_LENGTH + (SCREEN_HEIGHT as f32 / 2.0);
+
+//     // Clamp to screen bounds
+//     if x < 0.0 || x >= SCREEN_WIDTH as f32 || y < 0.0 || y >= SCREEN_HEIGHT as f32 {
+//         return;
+//     }
+
+//     let x = x as usize;
+//     let y = y as usize;
+
+//     let z = point.z as i8;
+
+//     if z > unsafe { Z[y * SCREEN_WIDTH + x] } {
+//         return;
+//     }
+
+//     unsafe {
+//         Z[y * SCREEN_WIDTH + x] = z;
+//         FRAMEBUFFER[y * SCREEN_WIDTH + x] = 255;
+//     }
+// }
+
+fn set_pixel_fb(x: usize, y: usize, color: u8) {
+    unsafe {
+        FRAMEBUFFER[y * SCREEN_WIDTH + x] = color;
+    }
 }
 
 fn main() {
-    let mut sin_a: i32 = 1024;
-    let mut cos_a: i32 = 0;
-    let mut sin_b: i32 = 1024;
-    let mut cos_b: i32 = 0;
-    
-    loop {
-        let mut z = [i8::MAX; 1760];
-        let mut buf: [char; 1760] = [' '; 1760];
-
-        let mut sj = 0;
-        let mut cj = 1024;
-        for _ in 0..90 {
-            let mut si = 0;
-            let mut ci = 1024;
-
-            for _ in 0..324 {
-                let r1 = 1;
-                let r2 = 2048;
-                let k2 = 5120 * 1024;
-        
-                let x0 = r1 * cj + r2;
-                let x1 = ci * x0 >> 10;
-                let x2 = cos_a * sj >> 10;
-                let x3 = si * x0 >> 10;
-                let x4 = r1 * x2 - (sin_a * x3 >> 10);
-                let x5 = sin_a * sj >> 10;
-                let x6 = k2 + r1 * 1024 * x5 + cos_a * x3;
-                let x7 = cj * si >> 10;
-                let x = 40 + 30 * (cos_b * x1 - sin_b * x4) / x6;
-                let y = 12 + 15 * (cos_b * x4 + sin_b * x1) / x6;
-                let n = (-cos_a * x7 - cos_b * ((-sin_a * x7 >> 10) + x2) - ci * (cj * sin_b >> 10) >> 10) - x5 >> 7;
-
-                let o = (x + 80 * y) as usize;
-                let zz: i8 = ((x6 - k2) >> 15) as i8;
-                if y < 22 && y > 0 && x > 0 && x < 80 && zz < z[o] {
-                    z[o] = zz;
-                    buf[o] = ['.', ',', '-', '~', ':', ';', '=', '!', '*', '#', '$', '@'][(if n > 0 { n } else { 0 }) as usize];
-                }
-                rotate(5, 8, &mut ci, &mut si);
-            }
-            rotate(9, 7, &mut cj, &mut sj);
+    enter_graphics_mode();
+    for x in 0..SCREEN_WIDTH {
+        for y in 0..SCREEN_HEIGHT {
+            let color = (x % 16) as u8 | ((y % 16) as u8) << 4;
+            set_pixel_fb(x, y, color);
         }
- 
-        print!("\x1B[H");
-        for k in 0..1760 {
-            if k % 80 == 0 {
-                print!("\n\r");
-            } else {
-                print!("{}", buf[k]);
-            }
-        }
-
-        rotate(5, 7, &mut cos_a, &mut sin_a);
-        rotate(5, 8, &mut cos_b, &mut sin_b);
     }
+    copy_framebuffer_to_screen(unsafe { core::ptr::addr_of!(FRAMEBUFFER) }, SCREEN_WIDTH * SCREEN_HEIGHT);
+    // loop {
+    //     for i in 0..SCREEN_WIDTH * SCREEN_HEIGHT {
+    //         unsafe {
+    //             Z[i] = i8::MAX;
+    //             BUF[i] = ' ';
+    //         }
+    //     }
+
+    //     display_point(Vec3::new(0.0, 0.0, 1.0));
+    //     display_point(Vec3::new(1.0, 0.0, 1.0));
+    //     display_point(Vec3::new(0.0, 1.0, 1.0));
+        
+    //     for i in 0..SCREEN_WIDTH {
+    //         display_point(Vec3::new(i as f32, 0.0, 1.0));
+    //         display_point(Vec3::new(i as f32, SCREEN_HEIGHT as f32 - 1.0, 1.0));
+    //     }
+
+    //     print!("\x1B[H");
+    //     for k in 0..SCREEN_WIDTH * SCREEN_HEIGHT {
+    //         if k % SCREEN_WIDTH == 0 {
+    //             print!("\n\r");
+    //         } else {
+    //             print!("{}", unsafe { BUF[k] });
+    //         }
+    //     }
+    // }
 }
