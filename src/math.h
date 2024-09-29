@@ -1,10 +1,8 @@
 #ifndef MATH_H
 #define MATH_H
 
-#define EXTRA_PRECISION 1
-
 // Generated with `new Array(360).fill(0).map((_, i) => Math.round(Math.cos(i / 180 * Math.PI) * (2**8))).map(n => String(n).padStart(4, " ")).map((e, i) => i % 18 === 0 ? `\n${e}` : e).join(", ")` lol
-static i32 COS_LOOKUP[360] = {
+static i16 COS_LOOKUP[360] = {
      256,  256,  256,  256,  255,  255,  255,  254,  254,  253,  252,  251,  250,  249,  248,  247,  246,  245, 
      243,  242,  241,  239,  237,  236,  234,  232,  230,  228,  226,  224,  222,  219,  217,  215,  212,  210, 
      207,  204,  202,  199,  196,  193,  190,  187,  184,  181,  178,  175,  171,  168,  165,  161,  158,  154, 
@@ -26,7 +24,7 @@ static i32 COS_LOOKUP[360] = {
      207,  210,  212,  215,  217,  219,  222,  224,  226,  228,  230,  232,  234,  236,  237,  239,  241,  242, 
      243,  245,  246,  247,  248,  249,  250,  251,  252,  253,  254,  254,  255,  255,  255,  256,  256,  256
 };
-static i32 SIN_LOOKUP[360] = {
+static i16 SIN_LOOKUP[360] = {
        0,    4,    9,   13,   18,   22,   27,   31,   36,   40,   44,   49,   53,   58,   62,   66,   71,   75, 
       79,   83,   88,   92,   96,  100,  104,  108,  112,  116,  120,  124,  128,  132,  136,  139,  143,  147, 
      150,  154,  158,  161,  165,  168,  171,  175,  178,  181,  184,  187,  190,  193,  196,  199,  202,  204, 
@@ -49,14 +47,25 @@ static i32 SIN_LOOKUP[360] = {
      -79,  -75,  -71,  -66,  -62,  -58,  -53,  -49,  -44,  -40,  -36,  -31,  -27,  -22,  -18,  -13,   -9,   -4
 };
 
-/// Returns a fixed-point number with 8 bits of fractional precision.
-static inline i32 cos_degrees(i32 angle) {
-    return COS_LOOKUP[angle % 360];
+int modulo(int x, int N){
+    return (x % N + N) % N;
 }
 
 /// Returns a fixed-point number with 8 bits of fractional precision.
-static inline i32 sin_degrees(i32 angle) {
-    return SIN_LOOKUP[angle % 360];
+static inline i16 cos_degrees(i16 angle) {
+    return COS_LOOKUP[modulo(angle, 360)];
+}
+
+/// Returns a fixed-point number with 8 bits of fractional precision.
+static inline i16 sin_degrees(i16 angle) {
+    return SIN_LOOKUP[modulo(angle, 360)];
+}
+
+static inline i16 max(i16 a, i16 b) {
+    return a > b ? a : b;
+}
+static inline i16 min(i16 a, i16 b) {
+    return a < b ? a : b;
 }
 
 #endif

@@ -1,23 +1,26 @@
-static void print(char* string) {
-    asm volatile("mov   $0x09, %%ah\n"
-                  "int   $0x21\n"
-                  : /* no output */
-                  : "d"(string)
-                  : "ah");
+static void print(volatile char* string) {
+    volatile char* current = string;
+    while(*current != '\0') {
+        asm volatile(
+            "mov $0x0E, %%ah\n"
+            "int $0x10\n"
+            : /* no output */
+            : "a"((0x0E << 8) | *current)
+        );
+        current++;
+    }
 }
 
 static void printlong(unsigned long n) {
     volatile char buffer[12];
     int i = sizeof(buffer);
-    buffer[--i] = '$';
-    if(n == 0)
-        buffer[--i] = '0';
-    else
-        for(; n > 0; n /= 10) buffer[--i] = '0' + (n % 10);
+    buffer[--i] = '\0';
+    if(n == 0) buffer[--i] = '0';
+    else for(; n > 0; n /= 10) buffer[--i] = '0' + (n % 10);
     print((char *) buffer + i);
 }
 
-static void println(char *string) {
+static void println(volatile char *string) {
     print(string);
     print("\n\r");
 }

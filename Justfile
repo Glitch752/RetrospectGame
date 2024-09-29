@@ -5,7 +5,7 @@ run:
   gcc -o retrospectGame.com \
     -std=gnu99 -Wall -Wextra -DDOS -Os -nostdlib -m16 -march=i386 -Wno-unused-function \
     -ffreestanding -fomit-frame-pointer -fwrapv -fno-strict-aliasing -fno-leading-underscore -fno-pic -fno-stack-protector \
-    -fcf-protection=none \
+    -fcf-protection=none -msoft-float \
     "-Wl,--nmagic,-static,-Tlink.x" \
     src/main.c
   

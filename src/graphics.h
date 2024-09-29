@@ -2,6 +2,8 @@
 #define GRAPHICS_H
 
 #include "types.h"
+#include "vec3.h"
+#include "port.h"
 
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 200
@@ -12,66 +14,93 @@ enum COLOR {
     YELLOW, WHITE
 };
 
-struct Point {
+typedef struct Point {
     short x, y;
-};
-
-struct Rect {
+} Point;
+typedef struct Rect {
     struct Point tl, br;
-};
+} Rect;
 
 static void enter_13h_graphics_mode() {
-    asm volatile("mov   $0x0013, %%ax\n"
-                  "int   $0x10\n"
-                  "mov   $0xA000, %%ax\n"
-                  "mov   %%ax, %%es\n"
-                  : /* no outputs */
-                  : /* no inputs */
-                  : "ax");
+    asm volatile(
+        "mov   $0x0013, %%ax\n"
+        "int   $0x10\n"
+        "mov   $0xA000, %%ax\n"
+        "mov   %%ax, %%es\n"
+        : /* no outputs */
+        : /* no inputs */
+        : "ax"
+    );
 }
 
 static void enter_text_mode() {
-    asm volatile("mov   $0x0003, %%ax\n"
-                  "int   $0x10\n"
-                  "mov   $0xA000, %%dx\n"
-                  "mov   %%dx, %%es\n"
-                  : /* no outputs */
-                  : /* no inputs */
-                  : "ax", "dx");
+    asm volatile(
+        "mov   $0x0003, %%ax\n"
+        "int   $0x10\n"
+        "mov   $0xA000, %%dx\n"
+        "mov   %%dx, %%es\n"
+        : /* no outputs */
+        : /* no inputs */
+        : "ax", "dx"
+    );
 }
 
 static void draw_pixel(volatile struct Point p, u8 color) {
     if(p.x >= 0 && p.x < SCREEN_WIDTH && p.y >= 0 && p.y < SCREEN_HEIGHT)
-        asm volatile("imul  $320, %%bx\n"
-                      "add   %%ax, %%bx\n"
-                      "mov   %%cl, %%es:(%%bx)\n"
-                      : /* no outputs */
-                      : "a"(p.x), "b"(p.y), "c"(color)
-                      : "dx");
+        asm volatile(
+            "imul  $320, %%bx\n"
+            "add   %%ax, %%bx\n"
+            "mov   %%cl, %%es:(%%bx)\n"
+            : /* no outputs */
+            : "a"(p.x), "b"(p.y), "c"(color)
+            : "dx"
+        );
+}
+
+static u16 DEPTH_BUFFER[SCREEN_WIDTH * SCREEN_HEIGHT] __attribute__((section(".framebuffer")));
+
+static void draw_pixel_with_depth(volatile struct Point p, u16 depth, u8 color) {
+    if(p.x >= 0 && p.x < SCREEN_WIDTH && p.y >= 0 && p.y < SCREEN_HEIGHT) {
+        if(depth < DEPTH_BUFFER[p.x + p.y * SCREEN_WIDTH]) {
+            DEPTH_BUFFER[p.x + p.y * SCREEN_WIDTH] = depth;
+            asm volatile(
+                "imul  $320, %%bx\n"
+                "add   %%ax, %%bx\n"
+                "mov   %%cl, %%es:(%%bx)\n"
+                : /* no outputs */
+                : "a"(p.x), "b"(p.y), "c"(color)
+                : "dx"
+            );
+        }
+    }
 }
 
 static void clear_screen(char color) {
-    asm volatile("mov   %%al, %%ah\n"
-                  "mov   $0, %%di\n"
-                  "push  %%ax\n"
-                  "shl   $16, %%eax\n"
-                  "pop   %%ax\n"
-                  "mov   $16000, %%cx\n"
-                  "rep\n"
-                  "stosl\n"
-                  : /* no outputs */
-                  : "a"(color)
-                  : "cx", "di");
+    asm volatile(
+        "mov   %%al, %%ah\n"
+        "mov   $0, %%di\n"
+        "push  %%ax\n"
+        "shl   $16, %%eax\n"
+        "pop   %%ax\n"
+        "mov   $16000, %%cx\n"
+        "rep\n"
+        "stosl\n"
+        : /* no outputs */
+        : "a"(color)
+        : "cx", "di"
+    );
+    
+    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 65535;
 }
 
 static int abs(int x) {
     return x < 0 ? -x : x;
 }
 
-static void draw_line(struct Point a, struct Point b, u8 color) {
-    int dx = abs(b.x - a.x), sx = a.x < b.x ? 1 : -1;
-    int dy = abs(b.y - a.y), sy = a.y < b.y ? 1 : -1;
-    int err = (dx > dy ? dx : -dy) / 2, e2;
+static void draw_line(Point a, Point b, u8 color) {
+    i16 dx = abs(b.x - a.x), sx = a.x < b.x ? 1 : -1;
+    i16 dy = abs(b.y - a.y), sy = a.y < b.y ? 1 : -1;
+    i16 err = (dx > dy ? dx : -dy) / 2, e2;
     for(;;) {
         draw_pixel(a, color);
         if(a.x == b.x && a.y == b.y)
@@ -88,26 +117,88 @@ static void draw_line(struct Point a, struct Point b, u8 color) {
     }
 }
 
-static void draw_rect(struct Rect r, u8 color) {
-    draw_line(r.tl, (struct Point){r.br.x, r.tl.y}, color);
-    draw_line(r.tl, (struct Point){r.tl.x, r.br.y}, color);
-    draw_line(r.br, (struct Point){r.br.x, r.tl.y}, color);
-    draw_line(r.br, (struct Point){r.tl.x, r.br.y}, color);
+// static inline i16 fast_sqrt(i16 v) {
+//   i16 g = 0x80, c = 0x80;
+//   for(;;) {
+//     if(g*g > v) g ^= c;
+//     c >>= 1;
+//     if(c == 0) return g;
+//     g |= c;
+//   }
+// }
+// static inline i16 fast_len(i16 x, i16 y) {
+//     return fast_sqrt(x * x + y * y);
+// }
+
+static void draw_filled_triangle_with_depth(Vec3 a, Vec3 b, Vec3 c, u8 color) {
+    if(a.y > b.y) { Vec3 t = a; a = b; b = t; }
+    if(a.y > c.y) { Vec3 t = a; a = c; c = t; }
+    if(b.y > c.y) { Vec3 t = b; b = c; c = t; }
+    
+    i16 total_height = c.y - a.y;
+    for(i16 i = 0; i < total_height; i++) {
+        bool second_half = i > b.y - a.y || b.y == a.y;
+        i16 segment_height = second_half ? c.y - b.y : b.y - a.y;
+        if(segment_height == 0) continue;
+        i16 alpha = (i * 256 / total_height);
+        i16 beta = (i * 256 - (second_half ? b.y - a.y : 0) * 256) / segment_height;
+        
+        Vec3 A = {
+            .x = a.x + (c.x - a.x) * alpha / 256,
+            .y = a.y + (c.y - a.y) * alpha / 256,
+            .z = a.z + (c.z - a.z) * alpha / 256
+        };
+        Vec3 B = {
+            .x = second_half ? b.x + (c.x - b.x) * beta / 256 : a.x + (b.x - a.x) * beta / 256,
+            .y = second_half ? b.y + (c.y - b.y) * beta / 256 : a.y + (b.y - a.y) * beta / 256,
+            .z = second_half ? b.z + (c.z - b.z) * beta / 256 : a.z + (b.z - a.z) * beta / 256
+        };
+        
+        if(A.x > B.x) { Vec3 t = A; A = B; B = t; }
+        for(i16 j = A.x; j <= B.x; j++) {
+            i16 xDifference = B.x - A.x;
+            if(xDifference == 0) xDifference = 1;
+            draw_pixel_with_depth((Point){ j, a.y + i }, A.z + (B.z - A.z) * (j - A.x) / xDifference, color);
+        }
+    }
+}
+
+typedef struct PaletteColor {
+    /// 0-63 each
+    u8 r, g, b;
+} PaletteColor;
+
+static PaletteColor read_palette(u8 index) {
+    outportb(0x3C7, index);
+    return (PaletteColor){
+        .r = inportb(0x3C9),
+        .g = inportb(0x3C9),
+        .b = inportb(0x3C9)
+    };
+}
+
+static void write_palette(u8 index, PaletteColor color) {
+    outportb(0x3C8, index);
+    outportb(0x3C9, color.r);
+    outportb(0x3C9, color.g);
+    outportb(0x3C9, color.b);
 }
 
 static void wait_for_vsync() {
-    asm volatile("mov   $0x03DA, %%dx\n"
-                  "current%=:"
-                  "in    %%dx, %%al\n"
-                  "and   $0x8, %%al\n"
-                  "jnz   current%=\n"
-                  "restart%=:"
-                  "in    %%dx, %%al\n"
-                  "and   $0x8, %%al\n"
-                  "jz    restart%=\n"
-                  : /* no outputs */
-                  : /* no inputs */
-                  : "al", "dx");
+    asm volatile(
+        "mov   $0x03DA, %%dx\n"
+        "current%=:"
+        "in    %%dx, %%al\n"
+        "and   $0x8, %%al\n"
+        "jnz   current%=\n"
+        "restart%=:"
+        "in    %%dx, %%al\n"
+        "and   $0x8, %%al\n"
+        "jz    restart%=\n"
+        : /* no outputs */
+        : /* no inputs */
+        : "al", "dx"
+    );
 }
 
 /// https://gist.github.com/t-mat/80af1caf3329f93ef993ebaa079e69d1
@@ -228,6 +319,31 @@ static void graphics_text_print(struct Point p, u8 color, const char *message) {
             }
         }
     }
+}
+
+static void graphics_num_print(struct Point p, u8 color, i16 num) {
+    char buffer[12];
+    i16 i = 0;
+    if(num == 0) {
+        buffer[i++] = '0';
+    } else {
+        if(num < 0) {
+            buffer[i++] = '-';
+            num = -num;
+        }
+        i16 n = num;
+        while(n > 0) {
+            n /= 10;
+            i++;
+        }
+        buffer[i] = '\0';
+        for(i--; i >= 0; i--) {
+            buffer[i] = '0' + num % 10;
+            num /= 10;
+        }
+    }
+    buffer[i] = '\0';
+    graphics_text_print(p, color, buffer);
 }
 
 #endif
