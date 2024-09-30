@@ -36,9 +36,6 @@ void init_CUBES() {
 int _main(void) {
     hook_keyboard_interrupt();
 
-    // Temporary: loop forever
-    // for(;;);
-
     enter_13h_graphics_mode();
     clear_screen(0);
 

@@ -20,6 +20,19 @@ static void printlong(unsigned long n) {
     print((char *) buffer + i);
 }
 
+static void print_hex(unsigned long n) {
+    volatile char buffer[12];
+    int i = sizeof(buffer);
+    buffer[--i] = '\0';
+    if(n == 0) buffer[--i] = '0';
+    else for(; n > 0; n /= 16) {
+        int digit = n % 16;
+        buffer[--i] = digit < 10 ? '0' + digit : 'A' + digit - 10;
+    }
+    print("0x");
+    print((char *) buffer + i);
+}
+
 static void println(volatile char *string) {
     print(string);
     print("\n\r");
