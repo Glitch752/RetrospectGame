@@ -131,6 +131,12 @@ static void draw_line(Point a, Point b, u8 color) {
 // }
 
 static void draw_filled_triangle_with_depth(Vec3 a, Vec3 b, Vec3 c, u8 color) {
+    // If all 3 points are off the screen, don't draw the triangle
+    bool aOnScreen = a.x >= 0 && a.x < SCREEN_WIDTH && a.y >= 0 && a.y < SCREEN_HEIGHT;
+    bool bOnScreen = b.x >= 0 && b.x < SCREEN_WIDTH && b.y >= 0 && b.y < SCREEN_HEIGHT;
+    bool cOnScreen = c.x >= 0 && c.x < SCREEN_WIDTH && c.y >= 0 && c.y < SCREEN_HEIGHT;
+    if(!aOnScreen && !bOnScreen && !cOnScreen) return;
+
     if(a.y > b.y) { Vec3 t = a; a = b; b = t; }
     if(a.y > c.y) { Vec3 t = a; a = c; c = t; }
     if(b.y > c.y) { Vec3 t = b; b = c; c = t; }

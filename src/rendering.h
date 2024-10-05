@@ -4,6 +4,8 @@
 #include "camera.h"
 #include "objects.h"
 
+#define CUBE_PALETTE_START 16
+
 void getCubeCorners(Cube *cube, Vec3 corners[8]) {
     i16 halfSize = cube->size / 2;
 
@@ -34,7 +36,7 @@ Vec3 projectPoint(Vec3 point) {
     Vec3 cameraPoint = transform_to_camera_space(point);
 
     i32 denominator = ((i32)cameraPoint.z + FOCAL_LENGTH) * 16;
-    if (denominator == 0) denominator = 1;
+    if (denominator <= 256) denominator = 256;
     i32 scale = (FOCAL_LENGTH * 256 * 256) / denominator;
 
     return (Vec3){

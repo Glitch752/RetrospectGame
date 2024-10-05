@@ -2,6 +2,7 @@
 #include "graphics.h"
 #include "time.h"
 #include "alloc.h"
+#include "mouse.h"
 #include "keyboard.h"
 #include "types.h"
 #include "math.h"
@@ -11,19 +12,22 @@
 #include "camera.h"
 #include "rendering.h"
 
+#define NUM_CUBES 25
 Cube CUBES[NUM_CUBES];
 
 void init_CUBES() {
-    for (int i = 0; i < NUM_CUBES; i++) {
-        CUBES[i].position.x = i * 75 - 90;
-        // CUBES[i].position.x = 0;
-        CUBES[i].position.y = 0;
-        CUBES[i].position.z = i * 30 + 60;
-        CUBES[i].size = 50;
-        CUBES[i].rotation.x = i * 30;
-        CUBES[i].rotation.y = 130 - i * 10;
-        CUBES[i].rotation.z = 80 - i * 10;
-        CUBES[i].baseColor = (PaletteColor){ prng_next_u8() % 32 + 32, prng_next_u8() % 32 + 32, prng_next_u8() % 32 + 32 };
+    for (i16 i = 0; i < 5; i++) {
+        for (i16 j = 0; j < 5; j++) {
+            i16 idx = i * 5 + j;
+            CUBES[idx].position.x = i * 75 - 90;
+            CUBES[idx].position.y = (i + j) % 2 * 50;
+            CUBES[idx].position.z = j * 75 - 90;
+            CUBES[idx].size = 50;
+            CUBES[idx].rotation.x = idx * 30;
+            CUBES[idx].rotation.y = 130 - idx * 10;
+            CUBES[idx].rotation.z = 80 - idx * 10;
+            CUBES[idx].baseColor = (PaletteColor){ prng_next_u8() % 32 + 32, prng_next_u8() % 32 + 32, prng_next_u8() % 32 + 32 };
+        }
     }
 }
 
@@ -45,10 +49,14 @@ int _main(void) {
 
         if(keyboard_is_key_down(KEY_SPACE)) CAMERA_POSITION.y += 2;
         if(keyboard_is_key_down(KEY_LSHIFT)) CAMERA_POSITION.y -= 2;
-        if(keyboard_is_key_down(KEY_A)) CAMERA_POSITION.x -= 2;
-        if(keyboard_is_key_down(KEY_D)) CAMERA_POSITION.x += 2;
-        if(keyboard_is_key_down(KEY_W)) CAMERA_POSITION.z += 2;
-        if(keyboard_is_key_down(KEY_S)) CAMERA_POSITION.z -= 2;
+        if(keyboard_is_key_down(KEY_A)) move_camera((Vec3){ -4, 0, 0 });
+        if(keyboard_is_key_down(KEY_D)) move_camera((Vec3){ +4, 0, 0 });
+        if(keyboard_is_key_down(KEY_W)) move_camera((Vec3){ 0, 0, +3 });
+        if(keyboard_is_key_down(KEY_S)) move_camera((Vec3){ 0, 0, -3 });
+        if(keyboard_is_key_down(KEY_Q)) CAMERA_ROTATION.y += 1;
+        if(keyboard_is_key_down(KEY_E)) CAMERA_ROTATION.y -= 1;
+        if(keyboard_is_key_down(KEY_Z)) CAMERA_ROTATION.x += 1;
+        if(keyboard_is_key_down(KEY_X)) CAMERA_ROTATION.x -= 1;
 
         wait_for_vsync();
         clear_screen(0);
