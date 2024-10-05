@@ -7,7 +7,7 @@ run:
     -ffreestanding -fomit-frame-pointer -fwrapv -fno-strict-aliasing -fno-leading-underscore -fno-pic -fno-stack-protector \
     -fcf-protection=none -msoft-float \
     "-Wl,--nmagic,-static,-Tlink.x" \
-    src/main.c src/keyboard_interrupt.s
+    src/main.c src/interrupt_handlers.s
   
   objcopy -O binary retrospectGame.com
 

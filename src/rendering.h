@@ -33,7 +33,7 @@ void getCubeCorners(Cube *cube, Vec3 corners[8]) {
 Vec3 projectPoint(Vec3 point) {
     Vec3 cameraPoint = transform_to_camera_space(point);
 
-    i32 denominator = ((i32)point.z + FOCAL_LENGTH) * 16;
+    i32 denominator = ((i32)cameraPoint.z + FOCAL_LENGTH) * 16;
     if (denominator == 0) denominator = 1;
     i32 scale = (FOCAL_LENGTH * 256 * 256) / denominator;
 

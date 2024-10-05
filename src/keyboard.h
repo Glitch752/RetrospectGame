@@ -57,26 +57,12 @@ enum KEY_NAMES {
 };
 
 static void (*old_keyboard_interrupt)(void*);
-// static __attribute__((interrupt)) void keyboard_interrupt(void* sp) {
-//     u32 scancode = inportb(0x60);
-//     if(scancode != 0xE0) KEYS_DOWN[scancode & 0x7F] = ((scancode & 0x80) == 0);
-
-//     outportb(0x20, 0x20); /* must send EOI to finish interrupt */
-
-//     // // Call the old interrupt handler
-//     // if(old_keyboard_interrupt != NULL) {
-//     //     old_keyboard_interrupt(sp);
-//     // }
-// }
-// The interrupt handler is in keyboard_interrupt.s
+// The interrupt handler is in interrupt_handlers.s
 extern void keyboard_interrupt(void* sp);
 
-void hook_keyboard_interrupt(void) {
-    old_keyboard_interrupt = get_interrupt_vector(KEYBOARD_INTERRUPT);
-
+void set_keyboard_interrupt(volatile void (*keyboard_interrupt)()) {
     // Declare a function pointer and assign it to the function
-    void (*keyboard_interrupt_pointer)() = &keyboard_interrupt;
-    u16 segment, offset;
+    volatile u16 segment, offset;
     asm volatile (
         "mov %%cs, %0\n"
         : "=r" (segment)
@@ -85,20 +71,19 @@ void hook_keyboard_interrupt(void) {
         "lea (%1), %%ax\n"
         "mov %%ax, %0\n"
         : "=r" (offset)
-        : "r" (keyboard_interrupt_pointer)
+        : "r" (keyboard_interrupt)
         : "%ax"
     );
 
     // Calculate the physical address
-    u32 physical_address = ((u32)segment << 4) + offset;
+    volatile u32 physical_address = ((u32)segment << 4) + offset;
     set_interrupt_vector(KEYBOARD_INTERRUPT, (void*)physical_address);
+}
 
-    // print("Hooked keyboard interrupt at ");
-    // print_hex(FAR_POINTER_SEGMENT(physical_address));
-    // print(":");
-    // print_hex(FAR_POINTER_OFFSET(physical_address));
-
-    // for(;;);
+void hook_keyboard_interrupt(void) {
+    old_keyboard_interrupt = get_interrupt_vector(KEYBOARD_INTERRUPT);
+    
+    set_keyboard_interrupt(keyboard_interrupt);
 }
 
 void unhook_keyboard_interrupt(void) {

@@ -1,9 +1,3 @@
-asm(
-    "call  _main\n"
-    "mov   $0x4C,%ah\n" // 4C is the DOS exit call
-    "int   $0x21\n"
-);
-
 #include "print.h"
 #include "graphics.h"
 #include "time.h"
@@ -49,6 +43,13 @@ int _main(void) {
             break;
         }
 
+        if(keyboard_is_key_down(KEY_SPACE)) CAMERA_POSITION.y += 2;
+        if(keyboard_is_key_down(KEY_LSHIFT)) CAMERA_POSITION.y -= 2;
+        if(keyboard_is_key_down(KEY_A)) CAMERA_POSITION.x -= 2;
+        if(keyboard_is_key_down(KEY_D)) CAMERA_POSITION.x += 2;
+        if(keyboard_is_key_down(KEY_W)) CAMERA_POSITION.z += 2;
+        if(keyboard_is_key_down(KEY_S)) CAMERA_POSITION.z -= 2;
+
         wait_for_vsync();
         clear_screen(0);
 
@@ -63,6 +64,12 @@ int _main(void) {
             drawCube(&CUBES[i]);
         }
     }
+
+    clear_screen(0);
+
+    enter_text_mode();
+
+    print("Goodbye!\r\n");
 
     unhook_keyboard_interrupt();
     return 0;

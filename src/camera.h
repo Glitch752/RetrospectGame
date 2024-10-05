@@ -19,10 +19,4 @@ Vec3 transform_to_camera_space(Vec3 point) {
     return transformedPoint;
 }
 
-static inline void move_camera(Vec3 movement) {
-    CAMERA_POSITION.x += movement.x;
-    CAMERA_POSITION.y += movement.y;
-    CAMERA_POSITION.z += movement.z;
-}
-
 #endif
