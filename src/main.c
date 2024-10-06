@@ -15,6 +15,8 @@
 #define NUM_CUBES 25
 Cube CUBES[NUM_CUBES];
 
+#include "physics.h"
+
 void init_CUBES() {
     for (i16 i = 0; i < 5; i++) {
         for (i16 j = 0; j < 5; j++) {
@@ -53,8 +55,8 @@ int _main(void) {
         if(keyboard_is_key_down(KEY_D)) move_camera((Vec3){ +4, 0, 0 });
         if(keyboard_is_key_down(KEY_W)) move_camera((Vec3){ 0, 0, +3 });
         if(keyboard_is_key_down(KEY_S)) move_camera((Vec3){ 0, 0, -3 });
-        if(keyboard_is_key_down(KEY_Q)) CAMERA_ROTATION.y += 1;
-        if(keyboard_is_key_down(KEY_E)) CAMERA_ROTATION.y -= 1;
+        if(keyboard_is_key_down(KEY_E)) CAMERA_ROTATION.y += 1;
+        if(keyboard_is_key_down(KEY_Q)) CAMERA_ROTATION.y -= 1;
         if(keyboard_is_key_down(KEY_Z)) CAMERA_ROTATION.x += 1;
         if(keyboard_is_key_down(KEY_X)) CAMERA_ROTATION.x -= 1;
 

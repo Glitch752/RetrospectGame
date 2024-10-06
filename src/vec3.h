@@ -12,33 +12,67 @@ typedef struct Vec3 {
 static inline i16 dot_product(Vec3 a, Vec3 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
+static inline Vec3 crossProduct(Vec3* a, Vec3* b) {
+    Vec3 result;
+    result.x = a->y * b->z - a->z * b->y;
+    result.y = a->z * b->x - a->x * b->z;
+    result.z = a->x * b->y - a->y * b->x;
+    return result;
+}
 
 void rotate_x(Vec3* point, i16 angle) {
     i32 cosA = cos_degrees(angle);
     i32 sinA = sin_degrees(angle);
-    i32 y = point->y << 8;
-    i32 z = point->z << 8;
-    
-    point->y = (((y * cosA) >> 8) - ((z * sinA) >> 8)) >> 8;
-    point->z = (((y * sinA) >> 8) + ((z * cosA) >> 8)) >> 8;
+
+    i32 y = TO_FIXED_POINT(point->y);
+    i32 z = TO_FIXED_POINT(point->z);
+
+    point->y = FROM_FIXED_POINT(FIXED_MUL(y, cosA) - FIXED_MUL(z, sinA));
+    point->z = FROM_FIXED_POINT(FIXED_MUL(y, sinA) + FIXED_MUL(z, cosA));
 }
 void rotate_y(Vec3* point, i16 angle) {
     i32 cosA = cos_degrees(angle);
     i32 sinA = sin_degrees(angle);
-    i32 x = point->x << 8;
-    i32 z = point->z << 8;
     
-    point->x = (((x * cosA) >> 8) + ((z * sinA) >> 8)) >> 8;
-    point->z = (((-x * sinA) >> 8) + ((z * cosA) >> 8)) >> 8;
+    i32 x = TO_FIXED_POINT(point->x);
+    i32 z = TO_FIXED_POINT(point->z);
+
+    point->x = FROM_FIXED_POINT(FIXED_MUL(x, cosA) - FIXED_MUL(z, sinA));
+    point->z = FROM_FIXED_POINT(FIXED_MUL(x, sinA) + FIXED_MUL(z, cosA));
 }
 void rotate_z(Vec3* point, i16 angle) {
     i32 cosA = cos_degrees(angle);
     i32 sinA = sin_degrees(angle);
-    i32 x = point->x << 8;
-    i32 y = point->y << 8;
-    
-    point->x = (((x * cosA) >> 8) - ((y * sinA) >> 8)) >> 8;
-    point->y = (((x * sinA) >> 8) + ((y * cosA) >> 8)) >> 8;
+
+    i32 x = TO_FIXED_POINT(point->x);
+    i32 y = TO_FIXED_POINT(point->y);
+
+    point->x = FROM_FIXED_POINT(FIXED_MUL(x, cosA) - FIXED_MUL(y, sinA));
+    point->y = FROM_FIXED_POINT(FIXED_MUL(x, sinA) + FIXED_MUL(y, cosA));
+}
+
+static inline Vec3 vectorSubtract(Vec3* a, Vec3* b) {
+    return (Vec3){
+        .x = a->x - b->x,
+        .y = a->y - b->y,
+        .z = a->z - b->z
+    };
+}
+
+static inline Vec3 vectorAdd(Vec3* a, Vec3* b) {
+    return (Vec3){
+        .x = a->x + b->x,
+        .y = a->y + b->y,
+        .z = a->z + b->z
+    };
+}
+
+static inline Vec3 vectorFPScale(Vec3* a, i16 scale) {
+    return (Vec3){
+        .x = FIXED_MUL(a->x, scale),
+        .y = FIXED_MUL(a->y, scale),
+        .z = FIXED_MUL(a->z, scale)
+    };
 }
 
 #endif
