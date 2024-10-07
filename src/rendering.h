@@ -6,32 +6,6 @@
 
 #define CUBE_PALETTE_START 16
 
-void getCubeCorners(Cube *cube, Vec3 corners[8]) {
-    i16 halfSize = cube->size / 2;
-
-    Vec3 localCorners[8] = {
-        {  halfSize,  halfSize,  halfSize },
-        {  halfSize,  halfSize, -halfSize },
-        {  halfSize, -halfSize,  halfSize },
-        {  halfSize, -halfSize, -halfSize },
-        { -halfSize,  halfSize,  halfSize },
-        { -halfSize,  halfSize, -halfSize },
-        { -halfSize, -halfSize,  halfSize },
-        { -halfSize, -halfSize, -halfSize },
-    };
-
-    // Rotate and translate each corner
-    for(i16 i = 0; i < 8; i++) {
-        rotate_x(&localCorners[i], cube->rotation.x);
-        rotate_y(&localCorners[i], cube->rotation.y);
-        rotate_z(&localCorners[i], cube->rotation.z);
-
-        corners[i].x = cube->position.x + localCorners[i].x;
-        corners[i].y = cube->position.y + localCorners[i].y;
-        corners[i].z = cube->position.z + localCorners[i].z;
-    }
-}
-
 Vec3 projectPoint(Vec3 point) {
     Vec3 cameraPoint = transform_to_camera_space(point);
 

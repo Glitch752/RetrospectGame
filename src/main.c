@@ -12,23 +12,29 @@
 #include "camera.h"
 #include "rendering.h"
 
-#define NUM_CUBES 25
+#define NUM_CUBES 16
 Cube CUBES[NUM_CUBES];
 
 #include "physics.h"
 
 void init_CUBES() {
-    for (i16 i = 0; i < 5; i++) {
-        for (i16 j = 0; j < 5; j++) {
-            i16 idx = i * 5 + j;
-            CUBES[idx].position.x = i * 75 - 90;
+    for (i16 i = 0; i < 4; i++) {
+        for (i16 j = 0; j < 4; j++) {
+            i16 idx = i * 4 + j;
+            CUBES[idx].position.x = i * 100 - 90;
             CUBES[idx].position.y = (i + j) % 2 * 50;
-            CUBES[idx].position.z = j * 75 - 90;
+            CUBES[idx].position.z = j * 100 - 90;
             CUBES[idx].size = 50;
             CUBES[idx].rotation.x = idx * 30;
             CUBES[idx].rotation.y = 130 - idx * 10;
             CUBES[idx].rotation.z = 80 - idx * 10;
             CUBES[idx].baseColor = (PaletteColor){ prng_next_u8() % 32 + 32, prng_next_u8() % 32 + 32, prng_next_u8() % 32 + 32 };
+
+            CUBES[idx].mass = TO_FIXED_POINT(10);
+            CUBES[idx].velocity = (Vec3){ prng_next_u16() % 4 - 2, prng_next_u16() % 4 - 2, prng_next_u16() % 4 - 2 };
+            CUBES[idx].acceleration = (Vec3){0, 0, 0};
+            CUBES[idx].angularVelocity = (Vec3){ prng_next_u16() % 6 - 3, prng_next_u16() % 6 - 3, prng_next_u16() % 6 - 3 };
+            CUBES[idx].angularAccel = (Vec3){0, 0, 0};
         }
     }
 }
@@ -65,10 +71,12 @@ int _main(void) {
 
         graphics_text_print((struct Point){5, 5}, (i / 10) % 15 + 1, "Retrospect!");
 
+        simulate(FIXED_DIV(TO_FIXED_POINT(1), TO_FIXED_POINT(50)));
+
         for (int i = 0; i < NUM_CUBES; i++) {
-            CUBES[i].rotation.x += 1;
-            CUBES[i].rotation.y += 1;
-            CUBES[i].rotation.z += 1;
+            // CUBES[i].rotation.x += 1;
+            // CUBES[i].rotation.y += 1;
+            // CUBES[i].rotation.z += 1;
             CUBES[i].paletteIndex = CUBE_PALETTE_START + i * 3;
             shadeCube(&CUBES[i]);
             drawCube(&CUBES[i]);

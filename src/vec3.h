@@ -12,11 +12,11 @@ typedef struct Vec3 {
 static inline i16 dot_product(Vec3 a, Vec3 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
-static inline Vec3 crossProduct(Vec3* a, Vec3* b) {
+static inline Vec3 crossProductFP(Vec3* a, Vec3* b) {
     Vec3 result;
-    result.x = a->y * b->z - a->z * b->y;
-    result.y = a->z * b->x - a->x * b->z;
-    result.z = a->x * b->y - a->y * b->x;
+    result.x = FIXED_MUL(a->y, b->z) - FIXED_MUL(a->z, b->y);
+    result.y = FIXED_MUL(a->z, b->x) - FIXED_MUL(a->x, b->z);
+    result.z = FIXED_MUL(a->x, b->y) - FIXED_MUL(a->y, b->x);
     return result;
 }
 
@@ -73,6 +73,12 @@ static inline Vec3 vectorFPScale(Vec3* a, i16 scale) {
         .y = FIXED_MUL(a->y, scale),
         .z = FIXED_MUL(a->z, scale)
     };
+}
+
+static inline Vec3 normalizeVectorFP(Vec3 vector) {
+    i16 length = FIXED_MUL(vector.x, vector.x) + FIXED_MUL(vector.y, vector.y) + FIXED_MUL(vector.z, vector.z);
+    length = FIXED_DIV(length, TO_FIXED_POINT(1));
+    return vectorFPScale(&vector, length);
 }
 
 #endif
