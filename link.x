@@ -3,7 +3,7 @@
 MEMORY {
     interrupt_handlers : ORIGIN = (0x100), LENGTH = 0x100
     dos : ORIGIN = (0x100 + 0x100), LENGTH = 0x10000
-    framebuffer : ORIGIN = (0x100 + 0x100 + 0x10000), LENGTH = 0x1F400
+    framebuffer : ORIGIN = (0x100 + 0x100 + 0x10000), LENGTH = 0x2EE00
 }
 
 SECTIONS {

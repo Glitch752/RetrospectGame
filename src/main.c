@@ -12,14 +12,14 @@
 #include "camera.h"
 #include "rendering.h"
 
-#define NUM_CUBES 16
+#define NUM_CUBES 9
 Cube CUBES[NUM_CUBES];
 
 #include "physics.h"
 
 void init_CUBES() {
-    for (i16 i = 0; i < 4; i++) {
-        for (i16 j = 0; j < 4; j++) {
+    for (i16 i = 0; i < 3; i++) {
+        for (i16 j = 0; j < 3; j++) {
             i16 idx = i * 4 + j;
             CUBES[idx].position.x = i * 100 - 90;
             CUBES[idx].position.y = (i + j) % 2 * 50;
@@ -66,11 +66,6 @@ int _main(void) {
         if(keyboard_is_key_down(KEY_Z)) CAMERA_ROTATION.x += 1;
         if(keyboard_is_key_down(KEY_X)) CAMERA_ROTATION.x -= 1;
 
-        wait_for_vsync();
-        clear_screen(0);
-
-        graphics_text_print((struct Point){5, 5}, (i / 10) % 15 + 1, "Retrospect!");
-
         simulate(FIXED_DIV(TO_FIXED_POINT(1), TO_FIXED_POINT(50)));
 
         for (int i = 0; i < NUM_CUBES; i++) {
@@ -81,6 +76,12 @@ int _main(void) {
             shadeCube(&CUBES[i]);
             drawCube(&CUBES[i]);
         }
+
+        drawGroundPlane();
+
+        graphics_text_print((struct Point){5, 5}, (i / 10) % 15 + 1, "Retrospect!");
+        
+        push_framebuffer();
     }
 
     clear_screen(0);

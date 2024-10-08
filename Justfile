@@ -5,7 +5,7 @@ run:
   gcc -o retrospectGame.com \
     -std=gnu99 -Wall -Wextra -DDOS -O3 -nostdlib -m16 -march=i386 -Wno-unused-function \
     -ffreestanding -fomit-frame-pointer -fwrapv -fno-strict-aliasing -fno-leading-underscore -fno-pic -fno-stack-protector \
-    -fcf-protection=none -msoft-float \
+    -fcf-protection=none \
     "-Wl,--nmagic,-static,-Tlink.x" \
     src/main.c src/interrupt_handlers.s
   

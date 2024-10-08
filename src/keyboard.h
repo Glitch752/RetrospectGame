@@ -60,7 +60,7 @@ static void (*old_keyboard_interrupt)(void*);
 // The interrupt handler is in interrupt_handlers.s
 extern void keyboard_interrupt(void* sp);
 
-void set_keyboard_interrupt(volatile void (*keyboard_interrupt)()) {
+void set_keyboard_interrupt(void (*keyboard_interrupt)()) {
     // Declare a function pointer and assign it to the function
     volatile u16 segment, offset;
     asm volatile (

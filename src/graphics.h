@@ -4,6 +4,7 @@
 #include "types.h"
 #include "vec3.h"
 #include "port.h"
+#include "math.h"
 
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 200
@@ -45,32 +46,36 @@ static void enter_text_mode() {
     );
 }
 
+static u16 DEPTH_BUFFER[SCREEN_WIDTH * SCREEN_HEIGHT] __attribute__((section(".framebuffer")));
+static u8 FRAME_BUFFER[SCREEN_WIDTH * SCREEN_HEIGHT] __attribute__((section(".framebuffer")));
+
 static void draw_pixel(volatile struct Point p, u8 color) {
     if(p.x >= 0 && p.x < SCREEN_WIDTH && p.y >= 0 && p.y < SCREEN_HEIGHT)
-        asm volatile(
-            "imul  $320, %%bx\n"
-            "add   %%ax, %%bx\n"
-            "mov   %%cl, %%es:(%%bx)\n"
-            : /* no outputs */
-            : "a"(p.x), "b"(p.y), "c"(color)
-            : "dx"
-        );
+        // asm volatile(
+        //     "imul  $320, %%bx\n"
+        //     "add   %%ax, %%bx\n"
+        //     "mov   %%cl, %%es:(%%bx)\n"
+        //     : /* no outputs */
+        //     : "a"(p.x), "b"(p.y), "c"(color)
+        //     : "dx"
+        // );
+        FRAME_BUFFER[p.x + p.y * SCREEN_WIDTH] = color;
 }
-
-static u16 DEPTH_BUFFER[SCREEN_WIDTH * SCREEN_HEIGHT] __attribute__((section(".framebuffer")));
 
 static void draw_pixel_with_depth(volatile struct Point p, u16 depth, u8 color) {
     if(p.x >= 0 && p.x < SCREEN_WIDTH && p.y >= 0 && p.y < SCREEN_HEIGHT) {
-        if(depth < DEPTH_BUFFER[p.x + p.y * SCREEN_WIDTH]) {
-            DEPTH_BUFFER[p.x + p.y * SCREEN_WIDTH] = depth;
-            asm volatile(
-                "imul  $320, %%bx\n"
-                "add   %%ax, %%bx\n"
-                "mov   %%cl, %%es:(%%bx)\n"
-                : /* no outputs */
-                : "a"(p.x), "b"(p.y), "c"(color)
-                : "dx"
-            );
+        u16 realDepth = 65535 / max(depth, 1);
+        if(realDepth > DEPTH_BUFFER[p.x + p.y * SCREEN_WIDTH]) {
+            DEPTH_BUFFER[p.x + p.y * SCREEN_WIDTH] = realDepth;
+            // asm volatile(
+            //     "imul  $320, %%bx\n"
+            //     "add   %%ax, %%bx\n"
+            //     "mov   %%cl, %%es:(%%bx)\n"
+            //     : /* no outputs */
+            //     : "a"(p.x), "b"(p.y), "c"(color)
+            //     : "dx"
+            // );
+            FRAME_BUFFER[p.x + p.y * SCREEN_WIDTH] = color;
         }
     }
 }
@@ -91,6 +96,24 @@ static void clear_screen(char color) {
     );
     
     for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 65535;
+}
+
+static void push_framebuffer() {
+    asm volatile(
+        // "mov   %%al, %%ah\n"
+        // "mov   $0, %%di\n"
+        // "push  %%ax\n"
+        // "shl   $16, %%eax\n"
+        // "pop   %%ax\n"
+        "mov   $0xA000, %%di\n"
+        "mov   $16000, %%cx\n" // Run this 16000 times
+        "rep movsl\n"
+        : /* no outputs */
+        : "si"(FRAME_BUFFER)
+        : "cx", "di", "si", "memory"
+    );
+    
+    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 0;
 }
 
 static int abs(int x) {
@@ -130,12 +153,14 @@ static void draw_line(Point a, Point b, u8 color) {
 //     return fast_sqrt(x * x + y * y);
 // }
 
+#define TRIANGLE_DRAW_FP_SCALE 9
 static void draw_filled_triangle_with_depth(Vec3 a, Vec3 b, Vec3 c, u8 color) {
-    // If all 3 points are off the screen, don't draw the triangle
-    bool aOnScreen = a.x >= 0 && a.x < SCREEN_WIDTH && a.y >= 0 && a.y < SCREEN_HEIGHT;
-    bool bOnScreen = b.x >= 0 && b.x < SCREEN_WIDTH && b.y >= 0 && b.y < SCREEN_HEIGHT;
-    bool cOnScreen = c.x >= 0 && c.x < SCREEN_WIDTH && c.y >= 0 && c.y < SCREEN_HEIGHT;
-    if(!aOnScreen && !bOnScreen && !cOnScreen) return;
+    // If the triangle doesn't intersect with the screen at all, don't draw it
+    i16 xMax = max(a.x, max(b.x, c.x));
+    i16 xMin = min(a.x, min(b.x, c.x));
+    i16 yMax = max(a.y, max(b.y, c.y));
+    i16 yMin = min(a.y, min(b.y, c.y));
+    if(xMin >= SCREEN_WIDTH || xMax < 0 || yMin >= SCREEN_HEIGHT || yMax < 0) return;
 
     if(a.y > b.y) { Vec3 t = a; a = b; b = t; }
     if(a.y > c.y) { Vec3 t = a; a = c; c = t; }
@@ -143,29 +168,30 @@ static void draw_filled_triangle_with_depth(Vec3 a, Vec3 b, Vec3 c, u8 color) {
     
     i16 total_height = c.y - a.y;
     for(i16 i = 0; i < total_height; i++) {
+        i16 y = a.y + i;
+        if(y < 0 || y >= SCREEN_HEIGHT) continue;
+
         bool second_half = i > b.y - a.y || b.y == a.y;
         i16 segment_height = second_half ? c.y - b.y : b.y - a.y;
         if(segment_height == 0) continue;
-        i16 alpha = (i * 256 / total_height);
-        i16 beta = (i * 256 - (second_half ? b.y - a.y : 0) * 256) / segment_height;
+        i16 alpha = ((i << TRIANGLE_DRAW_FP_SCALE) / total_height);
+        i16 beta = ((i << TRIANGLE_DRAW_FP_SCALE) - ((second_half ? b.y - a.y : 0) << TRIANGLE_DRAW_FP_SCALE)) / segment_height;
         
         Vec3 A = {
-            .x = a.x + (c.x - a.x) * alpha / 256,
-            .y = a.y + (c.y - a.y) * alpha / 256,
-            .z = a.z + (c.z - a.z) * alpha / 256
+            .x = a.x + (((c.x - a.x) * alpha) >> TRIANGLE_DRAW_FP_SCALE),
+            .y = a.y + (((c.y - a.y) * alpha) >> TRIANGLE_DRAW_FP_SCALE),
+            .z = a.z + (((c.z - a.z) * alpha) >> TRIANGLE_DRAW_FP_SCALE)
         };
         Vec3 B = {
-            .x = second_half ? b.x + (c.x - b.x) * beta / 256 : a.x + (b.x - a.x) * beta / 256,
-            .y = second_half ? b.y + (c.y - b.y) * beta / 256 : a.y + (b.y - a.y) * beta / 256,
-            .z = second_half ? b.z + (c.z - b.z) * beta / 256 : a.z + (b.z - a.z) * beta / 256
+            .x = second_half ? b.x + (((c.x - b.x) * beta) >> TRIANGLE_DRAW_FP_SCALE) : a.x + (((b.x - a.x) * beta) >> TRIANGLE_DRAW_FP_SCALE),
+            .y = second_half ? b.y + (((c.y - b.y) * beta) >> TRIANGLE_DRAW_FP_SCALE) : a.y + (((b.y - a.y) * beta) >> TRIANGLE_DRAW_FP_SCALE),
+            .z = second_half ? b.z + (((c.z - b.z) * beta) >> TRIANGLE_DRAW_FP_SCALE) : a.z + (((b.z - a.z) * beta) >> TRIANGLE_DRAW_FP_SCALE)
         };
         
         if(A.x > B.x) { Vec3 t = A; A = B; B = t; }
-        for(i16 j = A.x; j <= B.x; j++) {
-            i16 xDifference = B.x - A.x;
-            if(xDifference == 0) xDifference = 1;
-            draw_pixel_with_depth((Point){ j, a.y + i }, A.z + (B.z - A.z) * (j - A.x) / xDifference, color);
-        }
+        i16 xDifference = B.x - A.x;
+        if(xDifference == 0) xDifference = 1;
+        for(i16 j = A.x; j <= B.x; j++) draw_pixel_with_depth((Point){ j, y }, A.z + (B.z - A.z) * (j - A.x) / xDifference, color);
     }
 }
 

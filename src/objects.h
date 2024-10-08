@@ -30,7 +30,7 @@ typedef struct Cube {
     u8 paletteIndex;
 } Cube;
 
-void getCubeCorners(Cube *cube, Vec3 corners[8]) {
+void get_cube_corners(Cube *cube, Vec3 corners[8]) {
     i16 halfSize = cube->size / 2;
 
     Vec3 localCorners[8] = {
@@ -53,6 +53,32 @@ void getCubeCorners(Cube *cube, Vec3 corners[8]) {
         corners[i].x = cube->position.x + localCorners[i].x;
         corners[i].y = cube->position.y + localCorners[i].y;
         corners[i].z = cube->position.z + localCorners[i].z;
+    }
+}
+
+void get_cube_corners_fp(Cube *cube, Vec3 corners[8]) {
+    i16 halfSize = TO_FIXED_POINT(cube->size / 2);
+
+    Vec3 localCorners[8] = {
+        {  halfSize,  halfSize,  halfSize },
+        {  halfSize,  halfSize, -halfSize },
+        {  halfSize, -halfSize,  halfSize },
+        {  halfSize, -halfSize, -halfSize },
+        { -halfSize,  halfSize,  halfSize },
+        { -halfSize,  halfSize, -halfSize },
+        { -halfSize, -halfSize,  halfSize },
+        { -halfSize, -halfSize, -halfSize },
+    };
+
+    // Rotate and translate each corner
+    for(i16 i = 0; i < 8; i++) {
+        rotate_x_fp(&localCorners[i], cube->rotation.x);
+        rotate_y_fp(&localCorners[i], cube->rotation.y);
+        rotate_z_fp(&localCorners[i], cube->rotation.z);
+
+        corners[i].x = TO_FIXED_POINT(cube->position.x + localCorners[i].x);
+        corners[i].y = TO_FIXED_POINT(cube->position.y + localCorners[i].y);
+        corners[i].z = TO_FIXED_POINT(cube->position.z + localCorners[i].z);
     }
 }
 

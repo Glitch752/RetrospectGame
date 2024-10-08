@@ -21,7 +21,7 @@ Vec3 projectPoint(Vec3 point) {
 }
 void drawCube(Cube *cube) {
     Vec3 corners[8];
-    getCubeCorners(cube, corners);
+    get_cube_corners(cube, corners);
     
     Vec3 projectedCorners[8];
     for(i16 i = 0; i < 8; i++) {
@@ -40,6 +40,23 @@ void drawCube(Cube *cube) {
     draw_filled_triangle_with_depth(projectedCorners[3], projectedCorners[6], projectedCorners[7], cube->paletteIndex + 1);
     draw_filled_triangle_with_depth(projectedCorners[1], projectedCorners[3], projectedCorners[5], cube->paletteIndex + 2);
     draw_filled_triangle_with_depth(projectedCorners[3], projectedCorners[5], projectedCorners[7], cube->paletteIndex + 2);
+}
+
+void drawGroundPlane() {
+    i16 size = 400;
+
+    Vec3 projectedCorners[4];
+    projectedCorners[0] = (Vec3){ .x = 0, .y = 0, .z = 0 };
+    projectedCorners[1] = (Vec3){ .x = 0, .y = 0, .z = size };
+    projectedCorners[2] = (Vec3){ .x = size, .y = 0, .z = size };
+    projectedCorners[3] = (Vec3){ .x = size, .y = 0, .z = 0 };
+
+    for(int i = 0; i < 4; i++) {
+        projectedCorners[i] = projectPoint(projectedCorners[i]);
+    }
+
+    draw_filled_triangle_with_depth(projectedCorners[0], projectedCorners[1], projectedCorners[2], 1);
+    draw_filled_triangle_with_depth(projectedCorners[2], projectedCorners[3], projectedCorners[0], 1);
 }
 
 Vec3 rotateNormal(Cube *cube, Vec3 normal) {

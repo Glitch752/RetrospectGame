@@ -22,7 +22,7 @@ Vec3 transform_to_camera_space(Vec3 point) {
     return transformedPoint;
 }
 
-Vec3 move_camera(Vec3 direction) {
+void move_camera(Vec3 direction) {
     rotate_y(&direction, -CAMERA_ROTATION.y);
 
     CAMERA_POSITION.x += direction.x;
