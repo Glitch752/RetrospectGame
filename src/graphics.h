@@ -96,7 +96,7 @@ static void clear_screen(char color) {
     );
     
     for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) FRAME_BUFFER[i] = 0;
-    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 65535;
+    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 0;
 }
 
 static void push_framebuffer() {

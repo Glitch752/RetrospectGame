@@ -20,3 +20,15 @@ I have a Justfile set up to compile and run the game. It assumnes `dosbox-x.exe`
 ```
 just run
 ```
+
+# TODO:
+- [ ] Use rep stosl for clearing framebuffer and depth buffer
+- [ ] Fix near plane clipping
+- [ ] Fix depth buffer
+- [ ] Make physics simulation work
+- [ ] Add text layout and proper rendering
+- [ ] Fix my cursed fixed location framebuffer copy
+- [ ] Improve movement
+- [ ] Add objects other than cubes
+- [ ] Add ability to spawn objects
+- [ ] Implement mouse input for moving objects
