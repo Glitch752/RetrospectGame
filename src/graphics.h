@@ -95,24 +95,55 @@ static void clear_screen(char color) {
         : "cx", "di"
     );
     
+    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) FRAME_BUFFER[i] = 0;
     for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 65535;
 }
 
 static void push_framebuffer() {
+    volatile u16 segment, offset;
+    asm volatile (
+        "mov %%cs, %0\n"
+        : "=r" (segment)
+    );
+    asm volatile (
+        "lea (%1), %%ax\n"
+        "mov %%ax, %0\n"
+        : "=r" (offset)
+        : "r" (FRAME_BUFFER)
+        : "%ax"
+    );
+
+    // Calculate the physical address
+    volatile u32 physical_address = ((u32)segment << 4) + offset;
+
     asm volatile(
-        // "mov   %%al, %%ah\n"
-        // "mov   $0, %%di\n"
-        // "push  %%ax\n"
-        // "shl   $16, %%eax\n"
-        // "pop   %%ax\n"
-        "mov   $0xA000, %%di\n"
-        "mov   $16000, %%cx\n" // Run this 16000 times
-        "rep movsl\n"
+        // Move from 0x0000:FRAME_BUFFER to 0xA000:0x0000
+        "push  %%ds\n"
+        "push  %%es\n"
+
+        // FRAME_BUFFER (in bx) -> ds
+        "mov   %%bx, %%ds\n"
+        // 0 -> esi
+        "mov   $0x0, %%esi\n"
+        // 0 -> edi
+        "mov   $0, %%edi\n"
+        // 0xA000 -> es
+        "mov   $0xA000, %%ax\n"
+        "mov   %%ax, %%es\n"
+
+        "mov   $16000, %%cx\n" // Run this 16000 times - 64000 bytes (the framebuffer size) / 4 bytes per dword (32 bits)
+        // rsi:ds to rdi:es
+        "rep movsd\n" // Move dword from address (R|E)SI to (R|E)DI. On a 16-bit processor, this means it moves 4 bytes at a time.
+
+        "pop %%es\n"
+        "pop %%ds\n"
         : /* no outputs */
-        : "si"(FRAME_BUFFER)
-        : "cx", "di", "si", "memory"
+        : "bx"(0x101835)
+        : "ax", "cx", "di", "si", "memory"
     );
     
+    // TODO: replace with rep stosl
+    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) FRAME_BUFFER[i] = 0;
     for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 0;
 }
 
