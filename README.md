@@ -15,6 +15,11 @@ I implemented a physics simulation, but I couldn't get it to work properly yet. 
 
 Thanks for playing even if it's broken!
 
+## Screenshots
+![A sample scene in the game with moving cubes](capture/retros~1_000.png)
+
+![The controls and information menu in-game](capture/retros~1_001.png)
+
 ## Development
 I have a Justfile set up to compile and run the game. It assumnes `dosbox-x.exe` is in your PATH, but it should be easily adapted to Linux or other environments.
 ```
