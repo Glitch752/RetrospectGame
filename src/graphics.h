@@ -138,7 +138,7 @@ static void push_framebuffer() {
         "pop %%es\n"
         "pop %%ds\n"
         : /* no outputs */
-        : "bx"(0x101835)
+        : "bx"(0x101835) // WTF?? Found through trial and error. Hackiest thing ever, but I just needed to make the game run
         : "ax", "cx", "di", "si", "memory"
     );
     
