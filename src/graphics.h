@@ -50,16 +50,7 @@ static u16 DEPTH_BUFFER[SCREEN_WIDTH * SCREEN_HEIGHT] __attribute__((section(".f
 static u8 FRAME_BUFFER[SCREEN_WIDTH * SCREEN_HEIGHT] __attribute__((section(".framebuffer")));
 
 static void draw_pixel(volatile struct Point p, u8 color) {
-    if(p.x >= 0 && p.x < SCREEN_WIDTH && p.y >= 0 && p.y < SCREEN_HEIGHT)
-        // asm volatile(
-        //     "imul  $320, %%bx\n"
-        //     "add   %%ax, %%bx\n"
-        //     "mov   %%cl, %%es:(%%bx)\n"
-        //     : /* no outputs */
-        //     : "a"(p.x), "b"(p.y), "c"(color)
-        //     : "dx"
-        // );
-        FRAME_BUFFER[p.x + p.y * SCREEN_WIDTH] = color;
+    if(p.x >= 0 && p.x < SCREEN_WIDTH && p.y >= 0 && p.y < SCREEN_HEIGHT) FRAME_BUFFER[p.x + p.y * SCREEN_WIDTH] = color;
 }
 
 static void draw_pixel_with_depth(volatile struct Point p, u16 depth, u8 color) {
@@ -67,18 +58,17 @@ static void draw_pixel_with_depth(volatile struct Point p, u16 depth, u8 color) 
         u16 realDepth = 65535 / max(depth, 1);
         if(realDepth > DEPTH_BUFFER[p.x + p.y * SCREEN_WIDTH]) {
             DEPTH_BUFFER[p.x + p.y * SCREEN_WIDTH] = realDepth;
-            // asm volatile(
-            //     "imul  $320, %%bx\n"
-            //     "add   %%ax, %%bx\n"
-            //     "mov   %%cl, %%es:(%%bx)\n"
-            //     : /* no outputs */
-            //     : "a"(p.x), "b"(p.y), "c"(color)
-            //     : "dx"
-            // );
             FRAME_BUFFER[p.x + p.y * SCREEN_WIDTH] = color;
         }
     }
 }
+
+static void clear_framebuffers() {
+    // I actually found `rep stosl` to be slower than this loop, but I'm not sure why.
+    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) FRAME_BUFFER[i] = 0;
+    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 0;
+}
+
 
 static void clear_screen(char color) {
     asm volatile(
@@ -88,34 +78,16 @@ static void clear_screen(char color) {
         "shl   $16, %%eax\n"
         "pop   %%ax\n"
         "mov   $16000, %%cx\n"
-        "rep\n"
-        "stosl\n"
+        "rep stosl\n"
         : /* no outputs */
         : "a"(color)
         : "cx", "di"
     );
     
-    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) FRAME_BUFFER[i] = 0;
-    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 0;
+    clear_framebuffers();
 }
 
 static void push_framebuffer() {
-    volatile u16 segment, offset;
-    asm volatile (
-        "mov %%cs, %0\n"
-        : "=r" (segment)
-    );
-    asm volatile (
-        "lea (%1), %%ax\n"
-        "mov %%ax, %0\n"
-        : "=r" (offset)
-        : "r" (FRAME_BUFFER)
-        : "%ax"
-    );
-
-    // Calculate the physical address
-    volatile u32 physical_address = ((u32)segment << 4) + offset;
-
     asm volatile(
         // Move from 0x0000:FRAME_BUFFER to 0xA000:0x0000
         "push  %%ds\n"
@@ -138,13 +110,14 @@ static void push_framebuffer() {
         "pop %%es\n"
         "pop %%ds\n"
         : /* no outputs */
-        : "bx"(0x101835) // WTF?? Found through trial and error. Hackiest thing ever, but I just needed to make the game run
+        // WTF?? Found through trial and error. THis is the hackiest thing ever,
+        // but I just needed to make the game run and this works consistently regardless of how I start the game or what DOS version I'm using.
+        // There's likely a better way to do this. 
+        : "bx"(((u32)FRAME_BUFFER << 4) - 0x7CB)
         : "ax", "cx", "di", "si", "memory"
     );
     
-    // TODO: replace with rep stosl
-    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) FRAME_BUFFER[i] = 0;
-    for(int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) DEPTH_BUFFER[i] = 0;
+    clear_framebuffers();
 }
 
 static int abs(int x) {

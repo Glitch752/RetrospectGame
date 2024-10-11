@@ -13,13 +13,9 @@ typedef struct Cube {
 
     /// In fixed-point
     Vec3 velocity;
-    /// In fixed-point
-    Vec3 acceleration;
 
     /// Degrees per second, in fixed-point
     Vec3 angularVelocity;
-    /// Degrees per second squared, in fixed-point
-    Vec3 angularAccel;
 
     /// In fixed-point
     i16 mass;

@@ -88,9 +88,7 @@ int _main(void) {
         if(keyboard_is_key_down(KEY_Z)) CAMERA_ROTATION.x += ROTATION_SPEED;
         if(keyboard_is_key_down(KEY_X)) CAMERA_ROTATION.x -= ROTATION_SPEED;
 
-        // simulate(FIXED_DIV(TO_FIXED_POINT(1), TO_FIXED_POINT(50)));
-
-        wait_for_vsync();
+        simulate(FIXED_DIV(TO_FIXED_POINT(1), TO_FIXED_POINT(50)));
 
         for (int i = 0; i < NUM_CUBES; i++) {
             CUBES[i].rotation.x += 1;
@@ -148,6 +146,7 @@ int _main(void) {
             graphics_text_print((struct Point){1, y++ * 9 - 1}, 15, "Thanks for playing even if it's broken!");
         }
         
+        wait_for_vsync();
         push_framebuffer();
     }
 
