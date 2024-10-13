@@ -4,26 +4,37 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 const scene = new THREE.Scene();
 
 class Cube {
-  x: number;
-  y: number;
-  z: number;
+  // We're intentionally not using a lot of classes and three.js concepts here to make it easy to port to C
+  x: number = 0;
+  y: number = 0;
+  z: number = 0;
 
-  size: number;
+  size: number = 0;
 
-  rotationX: number;
-  rotationY: number;
-  rotationZ: number;
+  rotationX: number = 0;
+  rotationY: number = 0;
+  rotationZ: number = 0;
   
-  velocityX: number;
-  velocityY: number;
-  velocityZ: number;
+  velocityX: number = 0;
+  velocityY: number = 0;
+  velocityZ: number = 0;
 
-  recentMotion: number;
-  recentRotation: number;
+  recentMotion: number = 0;
+  recentRotation: number = 0;
 
   sleeping: boolean = false;
 
-  constructor(size, x, y, z) {
+  t00: number = 0;
+  t01: number = 0;
+  t02: number = 0;
+  t10: number = 0;
+  t11: number = 0;
+  t12: number = 0;
+  t20: number = 0;
+  t21: number = 0;
+  t22: number = 0;
+
+  constructor(size: number, x: number, y: number, z: number) {
     this.size = size;
     this.x = x;
     this.y = y;
@@ -90,16 +101,24 @@ class Cube {
     // TODO: quaternion stuff idk
   }
 
-  mesh: THREE.Mesh;
+  mesh?: THREE.Mesh;
+  tempMatrix3 = new THREE.Matrix3();
+  tempVector3 = new THREE.Vector3();
   updateRendering() {
-    // this.mesh.position.x = this.position.x;
-    // this.mesh.position.y = this.position.y;
-    // this.mesh.position.z = this.position.z;
-    // this.mesh.rotation.x = this.rotation.x;
-    // this.mesh.rotation.y = this.rotation.y;
-    // this.mesh.rotation.z = this.rotation.z;
-
-    // TODO?
+    if(!this.mesh) return;
+    // TEMPORARY
+    this.t00 = 0.7071067811865476;
+    this.t01 = -0.7071067811865475;
+    this.t02 = 0;
+    this.t10 = 0.7071067811865475;
+    this.t11 = 0.7071067811865476;
+    this.t12 = 0;
+    this.t20 = 0;
+    this.t21 = 0;
+    this.t22 = 1;
+    this.mesh.matrixAutoUpdate = false;
+    this.mesh.matrix.setFromMatrix3(this.tempMatrix3.set(this.t00, this.t01, this.t02, this.t10, this.t11, this.t12, this.t20, this.t21, this.t22));
+    this.mesh.matrix.setPosition(this.tempVector3.set(this.x, this.y, this.z));
   }
 }
 
@@ -122,7 +141,6 @@ function simulate(dt: number) {
     cube.checkSleep();
   }
 }
-
 
 
 for(let cube of cubes) {
@@ -148,7 +166,7 @@ renderer.setAnimationLoop(animation);
 document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls( camera, renderer.domElement );
 let lastTime = 0;
-function animation(time) {
+function animation(time: number) {
   const dt = time - lastTime;
   lastTime = time;
 
