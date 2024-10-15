@@ -44,7 +44,7 @@ class Cube {
   w: number = 1; i: number = 0; j: number = 0; k: number = 0;
 
   maximumPenetration: number = 0;
-  maximumPenetrationCollider: number = 0;
+  maximumPenetrationCollision: number = 0;
 
   minX: number = 0; minY: number = 0; minZ: number = 0;
   minXVertex: number = 0; minYVertex: number = 0; minZVertex: number = 0;
@@ -315,6 +315,7 @@ class Collision {
   // Results
   vertexX: number = 0; vertexY: number = 0; vertexZ: number = 0;
   worldX: number = 0; worldY: number = 0; worldZ: number = 0;
+  directionX: number = 0; directionY: number = 0; directionZ: number = 0;
 
   private constructor(type: CollisionType, collider1: Cube, collider2: Cube) {
     this.type = type;
@@ -322,21 +323,33 @@ class Collision {
     this.collider2 = collider2;
   }
 
-  static cubeFaceCubePoint(collider1: Cube, collider2: Cube, vertex: number, faceX: number, faceY: number, faceZ: number) {
+  static cubeFaceCubePoint(collider1: Cube, collider2: Cube, vertex: number, faceX: number, faceY: number, faceZ: number, vertexPosition: [number, number, number], directionX: number, directionY: number, directionZ: number) {
     const collision = new Collision(CollisionType.CubeFaceCubePoint, collider1, collider2);
     collision.faceX = faceX;
     collision.faceY = faceY;
     collision.faceZ = faceZ;
     collision.vertex = vertex;
+    collision.vertexX = vertexPosition[0];
+    collision.vertexY = vertexPosition[1];
+    collision.vertexZ = vertexPosition[2];
+    collision.directionX = directionX;
+    collision.directionY = directionY;
+    collision.directionZ = directionZ;
     return collision;
   }
 
-  static cubeEdgeCubeEdge(collider1: Cube, collider2: Cube, vertex1: number, vertex2: number, nextVertex1: number, nextVertex2: number) {
+  static cubeEdgeCubeEdge(collider1: Cube, collider2: Cube, vertex1: number, vertex2: number, nextVertex1: number, nextVertex2: number, directionX: number, directionY: number, directionZ: number, worldX: number, worldY: number, worldZ: number) {
     const collision = new Collision(CollisionType.CubeEdgeCubeEdge, collider1, collider2);
     collision.vertex1 = vertex1;
     collision.vertex2 = vertex2;
     collision.nextVertex1 = nextVertex1;
     collision.nextVertex2 = nextVertex2;
+    collision.directionX = directionX;
+    collision.directionY = directionY;
+    collision.directionZ = directionZ;
+    collision.worldX = worldX;
+    collision.worldY = worldY;
+    collision.worldZ = worldZ;
     return collision;
   }
 
@@ -449,7 +462,7 @@ function updateActiveCollisions() {
   for(let cube of cubes) {
     cube.calculateVertexWorldPositions();
     cube.maximumPenetration = 0;
-    cube.maximumPenetrationCollider = 0;
+    cube.maximumPenetrationCollision = 0;
   }
 
   // Check for collisions
@@ -565,12 +578,125 @@ function getMinimumSeparatingAxis(collider1: Cube, collider2: Cube): { axisIndex
   return minimumAxis;
 }
 
+function getVertexFromAxisSigns(sign0: number, sign1: number, sign2: number): number {
+  // TODO
+}
+
+function getEdgeFromSigns(sign0: number, sign1: number, sign2: number): { vertex: number, nextVertex: number } {
+  // TODO
+}
+
 function getCollisions(collider1: Cube, collider2: Cube) {
   if(collider1.sleeping && collider2.sleeping) return;
 
   const minimumSeparatingAxis = getMinimumSeparatingAxis(collider1, collider2);
+  if(!minimumSeparatingAxis) return;
 
-  // TODO: actually handle the axis results
+  if(minimumSeparatingAxis.penetration > collider1.maximumPenetration) {
+    collider1.maximumPenetration = minimumSeparatingAxis.penetration;
+    collider1.maximumPenetrationCollision = collisions.length;
+  }
+
+  if(minimumSeparatingAxis.penetration > collider2.maximumPenetration) {
+    collider2.maximumPenetration = minimumSeparatingAxis.penetration;
+    collider2.maximumPenetrationCollision = collisions.length;
+  }
+
+  if(minimumSeparatingAxis.axisIndex < 3) {
+    // Collider1 face, collider2 point
+    let directionX = 0, directionY = 0, directionZ = 0;
+    if(minimumSeparatingAxis.axisIndex == 0) {
+      directionX = minimumSeparatingAxis.axisSign; directionY = 0; directionZ = 0;
+    } else if(minimumSeparatingAxis.axisIndex == 1) {
+      directionX = 0; directionY = minimumSeparatingAxis.axisSign; directionZ = 0;
+    } else if(minimumSeparatingAxis.axisIndex == 2) {
+      directionX = 0; directionY = 0; directionZ = minimumSeparatingAxis.axisSign;
+    }
+
+    const axis0 = collider1.axes[0];
+    const axis1 = collider1.axes[1];
+    const axis2 = collider1.axes[2];
+
+    let minAxisX = minimumSeparatingAxis.axis[0] * minimumSeparatingAxis.axisSign;
+    let minAxisY = minimumSeparatingAxis.axis[1] * minimumSeparatingAxis.axisSign;
+    let minAxisZ = minimumSeparatingAxis.axis[2] * minimumSeparatingAxis.axisSign;
+
+    let sign0 = minAxisX * axis0[0] + minAxisY * axis0[1] + minAxisZ * axis0[2];
+    let sign1 = minAxisX * axis1[0] + minAxisY * axis1[1] + minAxisZ * axis1[2];
+    let sign2 = minAxisX * axis2[0] + minAxisY * axis2[1] + minAxisZ * axis2[2];
+
+    let vertex = getVertexFromAxisSigns(sign0, sign1, sign2);
+
+    const collision = Collision.cubeFaceCubePoint(collider1, collider2, vertex, minAxisX, minAxisY, minAxisZ, collider2.vertices[vertex], directionX, directionY, directionZ);
+    collisions.push(collision);
+  } else if(minimumSeparatingAxis.axisIndex < 6) {
+    // Collider1 point, collider2 face
+    let minAxisSign = minimumSeparatingAxis.axisSign * -1;
+    let directionX = 0, directionY = 0, directionZ = 0;
+    if(minimumSeparatingAxis.axisIndex == 3) {
+      directionX = minimumSeparatingAxis.axisSign; directionY = 0; directionZ = 0;
+    } else if(minimumSeparatingAxis.axisIndex == 4) {
+      directionX = 0; directionY = minimumSeparatingAxis.axisSign; directionZ = 0;
+    } else if(minimumSeparatingAxis.axisIndex == 5) {
+      directionX = 0; directionY = 0; directionZ = minimumSeparatingAxis.axisSign;
+    }
+
+    const axis0 = collider2.axes[0];
+    const axis1 = collider2.axes[1];
+    const axis2 = collider2.axes[2];
+
+    let minAxisX = minimumSeparatingAxis.axis[0] * minAxisSign;
+    let minAxisY = minimumSeparatingAxis.axis[1] * minAxisSign;
+    let minAxisZ = minimumSeparatingAxis.axis[2] * minAxisSign;
+
+    let sign0 = minAxisX * axis0[0] + minAxisY * axis0[1] + minAxisZ * axis0[2];
+    let sign1 = minAxisX * axis1[0] + minAxisY * axis1[1] + minAxisZ * axis1[2];
+    let sign2 = minAxisX * axis2[0] + minAxisY * axis2[1] + minAxisZ * axis2[2];
+
+    let vertex = getVertexFromAxisSigns(sign0, sign1, sign2);
+
+    const collision = Collision.cubeFaceCubePoint(collider2, collider1, vertex, minAxisX, minAxisY, minAxisZ, collider1.vertices[vertex], directionX, directionY, directionZ);
+    collisions.push(collision);
+  } else {
+    // Collider1 edge, collider2 edge
+    const edgeAxisIndex = minimumSeparatingAxis.axisIndex - 6;
+
+    const axis0 = collider1.axes[0];
+    const axis1 = collider1.axes[1];
+    const axis2 = collider1.axes[2];
+
+    let minAxisX = minimumSeparatingAxis.axis[0] * minimumSeparatingAxis.axisSign;
+    let minAxisY = minimumSeparatingAxis.axis[1] * minimumSeparatingAxis.axisSign;
+    let minAxisZ = minimumSeparatingAxis.axis[2] * minimumSeparatingAxis.axisSign;
+
+    let axis = Math.floor(edgeAxisIndex / 3);
+    let sign0 = 0, sign1 = 0, sign2 = 0;
+    if(axis != 0) sign0 = minAxisX * axis0[0] + minAxisY * axis0[1] + minAxisZ * axis0[2];
+    if(axis != 1) sign1 = minAxisX * axis1[0] + minAxisY * axis1[1] + minAxisZ * axis1[2];
+    if(axis != 2) sign2 = minAxisX * axis2[0] + minAxisY * axis2[1] + minAxisZ * axis2[2];
+
+    let { vertex, nextVertex } = getEdgeFromSigns(sign0, sign1, sign2);
+
+    const axis0B = collider2.axes[0];
+    const axis1B = collider2.axes[1];
+    const axis2B = collider2.axes[2];
+    
+    let sign0B = 0, sign1B = 0, sign2B = 0;
+    if(axis != 0) sign0B = minAxisX * axis0B[0] + minAxisY * axis0B[1] + minAxisZ * axis0B[2];
+    if(axis != 1) sign1B = minAxisX * axis1B[0] + minAxisY * axis1B[1] + minAxisZ * axis1B[2];
+    if(axis != 2) sign2B = minAxisX * axis2B[0] + minAxisY * axis2B[1] + minAxisZ * axis2B[2];
+    
+    let { vertex: vertexB, nextVertex: nextVertexB } = getEdgeFromSigns(sign0B, sign1B, sign2B);
+
+    const collision = Collision.cubeEdgeCubeEdge(
+      collider1, collider2,
+      vertex, vertexB, nextVertex, nextVertexB,
+      minAxisX, minAxisY, minAxisZ,
+      // getTwoClosestPointsOnEdges(vertex1.x, vertex1.y, vertex1.z, nvert1.x - vertex1.x, nvert1.y - vertex1.y, nvert1.z - vertex1.z, vertex2.x, vertex2.y, vertex2.z, nvert2.x - vertex2.x, nvert2.y - vertex2.y, nvert2.z - vertex2.z)
+      // ??? idk
+      // collider1.vertices[vertex][0], collider1.vertices[vertex][1], collider1.vertices[vertex][2]
+    );
+  }
 }
 
 function simulate(dt: number) {
