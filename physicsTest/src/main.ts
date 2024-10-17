@@ -46,13 +46,11 @@ class Cube {
   maximumPenetration: number = 0;
   maximumPenetrationCollision: number | null = null;
 
-  minX: number = 0; minY: number = 0; minZ: number = 0;
-  minXVertex: number = 0; minYVertex: number = 0; minZVertex: number = 0;
-  maxX: number = 0; maxY: number = 0; maxZ: number = 0;
-  maxXVertex: number = 0; maxYVertex: number = 0; maxZVertex: number = 0;
-
   vertices: [number, number, number][] = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
   axes: [number, number, number][] = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+
+  inverseRotationInertia: number = 0.4;
+  inverseMass: number = 0.8;
 
   constructor(size: number, x: number, y: number, z: number) {
     this.size = size;
@@ -148,10 +146,6 @@ class Cube {
 
   calculateVertexWorldPositions() {
     const halfSize = this.size / 2;
-    
-    // Calculate the AABB
-    this.minX = this.x; this.minY = this.y; this.minZ = this.z;
-    this.maxX = this.x; this.maxY = this.y; this.maxZ = this.z;
 
     // Initialize all vertices to our position
     for(let i = 0; i < 8; i++) {
@@ -198,17 +192,6 @@ class Cube {
     this.vertices[5][0] += worldX; this.vertices[5][1] += worldY; this.vertices[5][2] += worldZ;
     this.vertices[6][0] -= worldX; this.vertices[6][1] -= worldY; this.vertices[6][2] -= worldZ;
     this.vertices[7][0] += worldX; this.vertices[7][1] += worldY; this.vertices[7][2] += worldZ;
-
-    // Update the AABB based on the vertices
-    for(let v = 0; v < 8; v++) {
-      const vertex = this.vertices[v];
-      if(vertex[0] < this.minX) { this.minX = vertex[0]; this.minXVertex = v; }
-      if(vertex[0] > this.maxX) { this.maxX = vertex[0]; this.maxXVertex = v; }
-      if(vertex[1] < this.minY) { this.minY = vertex[1]; this.minYVertex = v; }
-      if(vertex[1] > this.maxY) { this.maxY = vertex[1]; this.maxYVertex = v; }
-      if(vertex[2] < this.minZ) { this.minZ = vertex[2]; this.minZVertex = v; }
-      if(vertex[2] > this.maxZ) { this.maxZ = vertex[2]; this.maxZVertex = v; }
-    }
   }
 
   localToWorld(x: number, y: number, z: number, includeTranslation: boolean): [number, number, number] {
@@ -292,6 +275,34 @@ function getTwoClosestPointsOnEdges(
   return [point1X, point1Y, point1Z, point2X, point2Y, point2Z];
 }
 
+function transposeThenMultiplyMatrix(
+  m1: [number, number, number, number, number, number, number, number, number],
+  m2: [number, number, number, number, number, number, number, number, number]
+): [number, number, number, number, number, number, number, number, number] {
+  let result: [number, number, number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for(let row = 0; row < 3; row++) {
+    for(let col = 0; col < 3; col++) {
+      // I'm not certain I did this right lol
+      result[row * 3 + col] = m1[row] * m2[col] + m1[row + 3] * m2[col + 3] + m1[row + 6] * m2[col + 6];
+    }
+  }
+  return result;
+}
+
+function multiplyMatrix(
+  m1: [number, number, number, number, number, number, number, number, number],
+  m2: [number, number, number, number, number, number, number, number, number]
+): [number, number, number, number, number, number, number, number, number] {
+  let result: [number, number, number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for(let row = 0; row < 3; row++) {
+    for(let col = 0; col < 3; col++) {
+      // I'm not certain I did this right lol
+      result[row * 3 + col] = m1[row] * m2[col * 3] + m1[row] * m2[col * 3 + 1] + m1[row] * m2[col * 3 + 2];
+    }
+  }
+  return result;
+}
+
 enum CollisionType {
   CubeFaceCubePoint,
   CubeEdgeCubeEdge
@@ -325,21 +336,15 @@ class Collision {
   lastInitializationFrame: number = 0;
 
   // Matrices
-  contactTranspose00: number = 0; contactTranspose01: number = 0; contactTranspose02: number = 0;
-  contactTranspose10: number = 0; contactTranspose11: number = 0; contactTranspose12: number = 0;
-  contactTranspose20: number = 0; contactTranspose21: number = 0; contactTranspose22: number = 0;
+  contactTransform00: number = 0; contactTransform01: number = 0; contactTransform02: number = 0;
+  contactTransform10: number = 0; contactTransform11: number = 0; contactTransform12: number = 0;
+  contactTransform20: number = 0; contactTransform21: number = 0; contactTransform22: number = 0;
 
   velocityToImpulse00: number = 0; velocityToImpulse01: number = 0; velocityToImpulse02: number = 0;
   velocityToImpulse10: number = 0; velocityToImpulse11: number = 0; velocityToImpulse12: number = 0;
   velocityToImpulse20: number = 0; velocityToImpulse21: number = 0; velocityToImpulse22: number = 0;
 
-  contact00: number = 0; contact01: number = 0; contact02: number = 0;
-  contact10: number = 0; contact11: number = 0; contact12: number = 0;
-  contact20: number = 0; contact21: number = 0; contact22: number = 0;
-
-  contactImpulseToVelocity00: number = 0; contactImpulseToVelocity01: number = 0; contactImpulseToVelocity02: number = 0;
   contactImpulseToVelocity10: number = 0; contactImpulseToVelocity11: number = 0; contactImpulseToVelocity12: number = 0;
-  contactImpulseToVelocity20: number = 0; contactImpulseToVelocity21: number = 0; contactImpulseToVelocity22: number = 0;
 
   private constructor(type: CollisionType, collider1: Cube, collider2: Cube) {
     this.type = type;
@@ -377,11 +382,137 @@ class Collision {
     return collision;
   }
 
+  move(directionX: number, directionY: number, directionZ: number, isCollider2: boolean) {
+    const sign = isCollider2 ? -1 : 1;
+    this.penetration -= sign * (directionX * this.directionX + directionY * this.directionY + directionZ * this.directionZ);
+  }
+
   /// Initializes this collision's matrices if they haven't already been initialized this frame.
   initializeMatricesIfNeeded() {
     if(this.lastInitializationFrame == collisionFrame) return;
 
-    // TODO
+    let contactTransform00 = 0, contactTransform01 = 0, contactTransform02 = 0;
+    let contactTransform10 = this.directionX, contactTransform11 = this.directionY, contactTransform21 = this.directionZ;
+    let contactTransform20 = 0, contactTransform12 = 0, contactTransform22 = 0;
+    let absX = Math.abs(this.directionX), absZ = Math.abs(this.directionZ);
+
+    if(absX < absZ) {
+      // The norm isn't pointing toward x, so cross the norm with 1,0,0
+      const s = Math.sqrt(this.directionY * this.directionY + this.directionZ * this.directionZ);
+      contactTransform00 = 0;
+      contactTransform10 = -this.directionZ / s;
+      contactTransform20 = this.directionY / s;
+
+      // Cross the norm with the new vector
+      contactTransform02 = (contactTransform10 * this.directionY - contactTransform20 * this.directionX);
+      contactTransform12 = (contactTransform20 * this.directionX);
+      contactTransform22 = (contactTransform10 * this.directionX);
+    } else {
+      // The norm isn't pointing toward z, so cross the norm with 0,0,1
+      const s = Math.sqrt(this.directionY * this.directionY + this.directionX * this.directionX);
+      contactTransform00 = this.directionY / s;
+      contactTransform10 = -this.directionX / s;
+      contactTransform20 = 0;
+
+      // Cross the norm with the new vector
+      contactTransform02 = (contactTransform10 * this.directionZ);
+      contactTransform12 = (contactTransform00 * this.directionZ);
+      contactTransform22 = (contactTransform00 * this.directionX - contactTransform10 * this.directionY);
+    }
+
+    this.contactTransform00 = contactTransform00; this.contactTransform01 = contactTransform01; this.contactTransform02 = contactTransform02;
+    this.contactTransform10 = contactTransform10; this.contactTransform11 = contactTransform11; this.contactTransform12 = contactTransform12;
+    this.contactTransform20 = contactTransform20; this.contactTransform21 = contactTransform11; this.contactTransform22 = contactTransform22;
+
+    let collisionX = this.worldX - this.collider1.x, collisionY = this.worldY - this.collider1.y, collisionZ = this.worldZ - this.collider1.z;
+    let inverseRotationInertia = this.collider1.inverseRotationInertia;
+
+    // Impulse to velocity transform
+    let impulseToVelocity00 = (collisionZ * collisionZ + collisionY * collisionY) / 1 * inverseRotationInertia;
+    let impulseToVelocity01 = (-collisionY * collisionX) / 1 * inverseRotationInertia;
+    let impulseToVelocity02 = (-collisionZ * collisionX) / 1 * inverseRotationInertia;
+    let impulseToVelocity10 = (-collisionX * collisionY) / 1 * inverseRotationInertia;
+    let impulseToVelocity11 = (collisionZ * collisionZ + collisionX * collisionX) / 1 * inverseRotationInertia;
+    let impulseToVelocity12 = (-collisionZ * collisionY) / 1 * inverseRotationInertia;
+    let impulseToVelocity20 = (-collisionX * collisionZ) / 1 * inverseRotationInertia;
+    let impulseToVelocity21 = (-collisionY * collisionZ) / 1 * inverseRotationInertia;
+    let impulseToVelocity22 = (collisionY * collisionY + collisionX * collisionX) / 1 * inverseRotationInertia;
+
+    const contactTransform: [number, number, number, number, number, number, number, number, number] =
+      [contactTransform00, contactTransform01, contactTransform02,
+        contactTransform10, contactTransform11, contactTransform12,
+        contactTransform20, contactTransform21, contactTransform22];
+
+    // We need to transform it into contact space before we multiply
+    const m = transposeThenMultiplyMatrix(
+      contactTransform,
+      [impulseToVelocity00, impulseToVelocity01, impulseToVelocity02,
+       impulseToVelocity10, impulseToVelocity11, impulseToVelocity12,
+       impulseToVelocity20, impulseToVelocity21, impulseToVelocity22]
+    );
+    // Then, transform it back into contact space
+    const impulseToVelocity = multiplyMatrix(m, contactTransform);
+    let inverseMass = this.collider1.inverseMass;
+
+    if(this.collider2) {
+      collisionX -= this.collider2.x; collisionY -= this.collider2.y; collisionZ -= this.collider2.z;
+      
+      inverseRotationInertia = this.collider2.inverseRotationInertia;
+
+      // Impulse to velocity transform
+      impulseToVelocity00 = (collisionZ * collisionZ + collisionY * collisionY) / 1 * inverseRotationInertia;
+      impulseToVelocity01 = (-collisionY * collisionX) / 1 * inverseRotationInertia;
+      impulseToVelocity02 = (-collisionZ * collisionX) / 1 * inverseRotationInertia;
+      impulseToVelocity10 = (-collisionX * collisionY) / 1 * inverseRotationInertia;
+      impulseToVelocity11 = (collisionZ * collisionZ + collisionX * collisionX) / 1 * inverseRotationInertia;
+      impulseToVelocity12 = (-collisionZ * collisionY) / 1 * inverseRotationInertia;
+      impulseToVelocity20 = (-collisionX * collisionZ) / 1 * inverseRotationInertia;
+      impulseToVelocity21 = (-collisionY * collisionZ) / 1 * inverseRotationInertia;
+      impulseToVelocity22 = (collisionY * collisionY + collisionX * collisionX) / 1 * inverseRotationInertia;
+
+      // We need to transform it into contact space before we multiply
+      const m2 = transposeThenMultiplyMatrix(
+        contactTransform,
+        [impulseToVelocity00, impulseToVelocity01, impulseToVelocity02,
+         impulseToVelocity10, impulseToVelocity11, impulseToVelocity12,
+         impulseToVelocity20, impulseToVelocity21, impulseToVelocity22]
+      );
+
+      // Then, transform it back into contact space
+      const impulseToVelocity2 = multiplyMatrix(m2, contactTransform);
+      for(let i = 0; i < 9; i++) impulseToVelocity[i] += impulseToVelocity2[i];
+        
+      inverseMass += this.collider2.inverseMass;
+    }
+
+    impulseToVelocity[0] += inverseMass;
+    impulseToVelocity[4] += inverseMass;
+    impulseToVelocity[8] += inverseMass;
+
+    this.contactImpulseToVelocity10 = impulseToVelocity[1];
+    this.contactImpulseToVelocity11 = impulseToVelocity[4];
+    this.contactImpulseToVelocity12 = impulseToVelocity[7];
+
+    let determinant = impulseToVelocity[0] * impulseToVelocity[4] * impulseToVelocity[8];
+    determinant += impulseToVelocity[1] * impulseToVelocity[5] * impulseToVelocity[6];
+    determinant += impulseToVelocity[2] * impulseToVelocity[3] * impulseToVelocity[7];
+    determinant -= impulseToVelocity[2] * impulseToVelocity[4] * impulseToVelocity[6];
+    determinant -= impulseToVelocity[1] * impulseToVelocity[3] * impulseToVelocity[8];
+    determinant -= impulseToVelocity[0] * impulseToVelocity[5] * impulseToVelocity[7];
+
+    this.velocityToImpulse00 = (impulseToVelocity[4] * impulseToVelocity[8] - impulseToVelocity[5] * impulseToVelocity[7]) / determinant;
+    this.velocityToImpulse01 = (impulseToVelocity[2] * impulseToVelocity[7] - impulseToVelocity[1] * impulseToVelocity[8]) / determinant;
+    this.velocityToImpulse02 = (impulseToVelocity[1] * impulseToVelocity[5] - impulseToVelocity[2] * impulseToVelocity[4]) / determinant;
+
+    this.velocityToImpulse10 = (impulseToVelocity[5] * impulseToVelocity[6] - impulseToVelocity[3] * impulseToVelocity[8]) / determinant;
+    this.velocityToImpulse11 = (impulseToVelocity[0] * impulseToVelocity[8] - impulseToVelocity[2] * impulseToVelocity[6]) / determinant;
+    this.velocityToImpulse12 = (impulseToVelocity[2] * impulseToVelocity[3] - impulseToVelocity[0] * impulseToVelocity[5]) / determinant;
+
+    this.velocityToImpulse20 = (impulseToVelocity[3] * impulseToVelocity[7] - impulseToVelocity[4] * impulseToVelocity[6]) / determinant;
+    this.velocityToImpulse21 = (impulseToVelocity[1] * impulseToVelocity[6] - impulseToVelocity[0] * impulseToVelocity[7]) / determinant;
+    this.velocityToImpulse22 = (impulseToVelocity[0] * impulseToVelocity[4] - impulseToVelocity[1] * impulseToVelocity[3]) / determinant;
+
+    this.lastInitializationFrame = collisionFrame;
   }
 
   /* Returns if the collision should be removed */
@@ -486,7 +617,13 @@ class Collision {
 
 const cubes: Cube[] = [];
 const collisions: Collision[] = [];
-for(let x = -2; x <= 2; x++) for(let y = -2; y <= 2; y++) cubes.push(new Cube(0.1, x * 0.2, 1.5, y * 0.2));
+// for(let x = -2; x <= 2; x++) for(let y = -2; y <= 2; y++) cubes.push(new Cube(0.1, x * 0.2, 1.5, y * 0.2));
+
+cubes.push(new Cube(0.1, 0, 1, 2));
+const c2 = new Cube(0.1, 0.3, 1.05, 2.05);
+c2.velocityX = -0.005;
+c2.rotationZ = 0.01;
+cubes.push(c2);
 
 function updateActiveCollisions() {
   // Update the maximum penetration for each collider
@@ -651,12 +788,12 @@ function getCollisions(collider1: Cube, collider2: Cube) {
 
   if(minimumSeparatingAxis.penetration > collider1.maximumPenetration) {
     collider1.maximumPenetration = minimumSeparatingAxis.penetration;
-    collider1.maximumPenetrationCollision = collisions.length;
+    collider1.maximumPenetrationCollision = collisions.length - 1;
   }
 
   if(minimumSeparatingAxis.penetration > collider2.maximumPenetration) {
     collider2.maximumPenetration = minimumSeparatingAxis.penetration;
-    collider2.maximumPenetrationCollision = collisions.length;
+    collider2.maximumPenetrationCollision = collisions.length - 1;
   }
 
   if(minimumSeparatingAxis.axisIndex < 3) {
@@ -825,7 +962,7 @@ function resolveCollisionVelocity() {
         const collider1 = collision.collider1;
         const collider2 = collision.collider2;
         if(!(collider1.sleeping && collider2.sleeping)) {
-          let collisionX = collision.vertexX, collisionY = collision.vertexY, collisionZ = collision.vertexZ;
+          const collisionX = collision.vertexX, collisionY = collision.vertexY, collisionZ = collision.vertexZ;
           let dx = collisionX - collider1.x, dy = collisionY - collider1.y, dz = collisionZ - collider1.z;
           let rotationX = collider1.rotationX, rotationY = collider1.rotationY, rotationZ = collider1.rotationZ;
           // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
@@ -861,7 +998,7 @@ function resolveCollisionVelocity() {
       }
     }
 
-    if(maxClosing <= 0.005) break;
+    if(maxClosing <= 0.001) break;
     handleCollisionImpulse(maxClosingCollision!);
   }
 }
@@ -871,11 +1008,11 @@ function handleCollisionImpulse(collision: Collision) {
 
   let velocityX = collision.velocityX, velocityY = collision.velocityY, velocityZ = collision.velocityZ;
 
-  // Transform by the contact transpose matrix to get the closing velocity in contact coordinates
+  // Transform by the contact transform matrix to get the closing velocity in contact coordinates
   // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
-  let contactVelocityX = collision.contactTranspose00 * velocityX + collision.contactTranspose10 * velocityY + collision.contactTranspose20 * velocityZ;
-  let contactVelocityY = collision.contactTranspose01 * velocityX + collision.contactTranspose11 * velocityY + collision.contactTranspose21 * velocityZ;
-  let contactVelocityZ = collision.contactTranspose02 * velocityX + collision.contactTranspose12 * velocityY + collision.contactTranspose22 * velocityZ;
+  let contactVelocityX = collision.contactTransform00 * velocityX + collision.contactTransform10 * velocityY + collision.contactTransform20 * velocityZ;
+  let contactVelocityY = collision.contactTransform01 * velocityX + collision.contactTransform11 * velocityY + collision.contactTransform21 * velocityZ;
+  let contactVelocityZ = collision.contactTransform02 * velocityX + collision.contactTransform12 * velocityY + collision.contactTransform22 * velocityZ;
 
   let restitution = 0.5; // TODO: Allow overriding per object?
   const cancelRestitution = -0.1;
@@ -910,19 +1047,83 @@ function handleCollisionImpulse(collision: Collision) {
 
   // Transform the impulse vector out of contact coordinates
   // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
-  let impulseX = (collision.contact00 * contactImpulseX + collision.contact01 * contactImpulseY + collision.contact02 * contactImpulseZ);
-  let impulseY = (collision.contact10 * contactImpulseX + collision.contact11 * contactImpulseY + collision.contact12 * contactImpulseZ);
-  let impulseZ = (collision.contact20 * contactImpulseX + collision.contact21 * contactImpulseY + collision.contact22 * contactImpulseZ);
+  let impulseX = (collision.contactTransform00 * contactImpulseX + collision.contactTransform01 * contactImpulseY + collision.contactTransform02 * contactImpulseZ);
+  let impulseY = (collision.contactTransform10 * contactImpulseX + collision.contactTransform11 * contactImpulseY + collision.contactTransform12 * contactImpulseZ);
+  let impulseZ = (collision.contactTransform20 * contactImpulseX + collision.contactTransform21 * contactImpulseY + collision.contactTransform22 * contactImpulseZ);
   
-  applyImpulse(collision.collider1, impulseX, impulseY, impulseZ);
+  applyImpulse(collision.collider1, collision.worldX, collision.worldY, collision.worldZ, impulseX, impulseY, impulseZ);
 
   if(collision.collider2) {
-    applyImpulse(collision.collider2, -impulseX, -impulseY, -impulseZ);
+    applyImpulse(collision.collider2, collision.worldX, collision.worldY, collision.worldZ, -impulseX, -impulseY, -impulseZ);
   }
 }
 
-function applyImpulse(cube: Cube, impulseX: number, impulseY: number, impulseZ: number) {
-  // TODO
+function applyImpulse(cube: Cube, worldX: number, worldY: number, worldZ: number, impulseX: number, impulseY: number, impulseZ: number) {
+  // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
+  cube.velocityX += impulseX * cube.inverseMass;
+  cube.velocityY += impulseY * cube.inverseMass;
+  cube.velocityZ += impulseZ * cube.inverseMass;
+
+  const xDifference = worldX - cube.x, yDifference = worldY - cube.y, zDifference = worldZ - cube.z;
+  // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
+  const torqueX = yDifference * impulseZ - zDifference * impulseY;
+  const torqueY = zDifference * impulseX - xDifference * impulseZ;
+  const torqueZ = xDifference * impulseY - yDifference * impulseX;
+
+  cube.rotationX += torqueX * cube.inverseRotationInertia;
+  cube.rotationY += torqueY * cube.inverseRotationInertia;
+  cube.rotationZ += torqueZ * cube.inverseRotationInertia;
+  
+  if(cube.sleeping) cube.wakeUp();
+}
+
+function resolveCollisionPenetration() {
+  for(let solverIteration = 0; solverIteration < 10; solverIteration++) {
+    let maximumPenetration = 0;
+    let maximumPenetrationCollision: Collision | null = null;
+  
+    for(let collision of collisions) {
+      if(!collision.active) continue;
+
+      const sleeping = collision.collider1.sleeping && (!collision.collider2 || collision.collider2.sleeping);
+      if(!sleeping && collision.penetration > maximumPenetration) {
+        maximumPenetration = collision.penetration;
+        maximumPenetrationCollision = collision;
+      }
+    }
+    
+    if(maximumPenetration < 0.02) break;
+    if(!maximumPenetrationCollision) break;
+    
+    const penetrationX = maximumPenetrationCollision.directionX * maximumPenetration;
+    const penetrationY = maximumPenetrationCollision.directionY * maximumPenetration;
+    const penetrationZ = maximumPenetrationCollision.directionZ * maximumPenetration;
+
+    if(!maximumPenetrationCollision.collider2) {
+      maximumPenetrationCollision.collider1.x += penetrationX;
+      maximumPenetrationCollision.collider1.y += penetrationY;
+      maximumPenetrationCollision.collider1.z += penetrationZ;
+
+      maximumPenetrationCollision.move(penetrationX, penetrationY, penetrationZ, true);
+    } else {
+      const { collider1, collider2 } = maximumPenetrationCollision;
+      const totalInverseMass = collider1.inverseMass + collider2.inverseMass;
+
+      const collider1MassRatio = collider1.inverseMass / totalInverseMass;
+      collider1.x += penetrationX * collider1MassRatio;
+      collider1.y += penetrationY * collider1MassRatio;
+      collider1.z += penetrationZ * collider1MassRatio;
+      if(collider1.sleeping) collider1.wakeUp();
+      maximumPenetrationCollision.move(penetrationX * collider1MassRatio, penetrationY * collider1MassRatio, penetrationZ * collider1MassRatio, false);
+
+      const collider2MassRatio = collider2.inverseMass / totalInverseMass;
+      collider2.x -= penetrationX * collider2MassRatio;
+      collider2.y -= penetrationY * collider2MassRatio;
+      collider2.z -= penetrationZ * collider2MassRatio;
+      if(collider2.sleeping) collider2.wakeUp();
+      maximumPenetrationCollision.move(-penetrationX * collider2MassRatio, -penetrationY * collider2MassRatio, -penetrationZ * collider2MassRatio, true);
+    }
+  }
 }
 
 function simulate(dt: number) {
@@ -941,10 +1142,9 @@ function simulate(dt: number) {
   }
 
   // Resolve collisions
-  // TODO
   cullCollisions();
   resolveCollisionVelocity();
-  // resolveCollisionPenetration();
+  resolveCollisionPenetration();
 
   // Finalize the update
   for(let cube of cubes) {
