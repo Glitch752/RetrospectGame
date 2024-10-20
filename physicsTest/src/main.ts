@@ -225,6 +225,7 @@ class Cube {
   mesh?: THREE.Mesh;
   tempMatrix3 = new THREE.Matrix3();
   tempVector3 = new THREE.Vector3();
+  tempMatrix4 = new THREE.Matrix4();
   updateRendering() {
     if(!this.mesh) return;
     this.mesh.matrixAutoUpdate = false;
@@ -233,7 +234,7 @@ class Cube {
       this.t10 * this.size, this.t11 * this.size, this.t12 * this.size,
       this.t20 * this.size, this.t21 * this.size, this.t22 * this.size
     ));
-    this.mesh.matrix.setPosition(this.tempVector3.set(this.x, this.y, this.z));
+    this.mesh.matrix.multiply(this.tempMatrix4.makeTranslation(this.tempVector3.set(this.x, this.y, this.z)));
   }
 }
 
@@ -280,14 +281,11 @@ function transposeThenMultiplyMatrix(
   m2: [number, number, number, number, number, number, number, number, number]
 ): [number, number, number, number, number, number, number, number, number] {
   let result: [number, number, number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-  for(let row = 0; row < 3; row++) {
-    for(let col = 0; col < 3; col++) {
-      result[col * 3 + row] =
-        m1[row * 3 + 0] * m2[0 * 3 + col] +
-        m1[row * 3 + 1] * m2[1 * 3 + col] +
-        m1[row * 3 + 2] * m2[2 * 3 + col];
-    }
-  }
+  multiplyMatrix([
+    m1[0], m1[3], m1[6],
+    m1[1], m1[4], m1[7],
+    m1[2], m1[5], m1[8]
+  ], m2).forEach((value, index) => result[index] = value);
   return result;
 }
 
@@ -296,12 +294,9 @@ function multiplyMatrix(
   m2: [number, number, number, number, number, number, number, number, number]
 ): [number, number, number, number, number, number, number, number, number] {
   let result: [number, number, number, number, number, number, number, number, number] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-  for(let row = 0; row < 3; row++) {
-    for(let col = 0; col < 3; col++) {
-      result[row * 3 + col] =
-        m1[row * 3 + 0] * m2[0 * 3 + col] +
-        m1[row * 3 + 1] * m2[1 * 3 + col] +
-        m1[row * 3 + 2] * m2[2 * 3 + col];
+  for(let i = 0; i < 3; i++) {
+    for(let j = 0; j < 3; j++) {
+      result[i * 3 + j] = m1[i * 3] * m2[j] + m1[i * 3 + 1] * m2[j + 3] + m1[i * 3 + 2] * m2[j + 6];
     }
   }
   return result;
@@ -656,9 +651,8 @@ function projectOntoSeparatingAxis(collider: Cube, separatingAxis: [number, numb
   let projected = 0;
   for(let axisIndex = 0; axisIndex < 3; axisIndex++) {
     const axis = collider.axes[axisIndex];
-    let dot = axis[0] * separatingAxis[0] + axis[1] * separatingAxis[1] + axis[2] * separatingAxis[2];
-    if(dot < 0) dot *= -1;
-    projected += dot;
+    const dot = axis[0] * separatingAxis[0] + axis[1] * separatingAxis[1] + axis[2] * separatingAxis[2];
+    projected += Math.abs(dot);
   }
 
   return projected * collider.size / 2;
@@ -682,7 +676,7 @@ function testAxisPenetration(centerToCenter: [number, number, number], axis: [nu
 }
 
 function getMinimumSeparatingAxis(collider1: Cube, collider2: Cube): { axisIndex: number, axis: [number, number, number], axisSign: number, penetration: number } | null {
-  const penetrationThreshold = collider1.maximumPenetration < collider2.maximumPenetration ? collider1.maximumPenetration : collider2.maximumPenetration;
+  const penetrationThreshold = Math.min(collider1.maximumPenetration, collider2.maximumPenetration);
   let minimumPenetration = Infinity;
   let minimumAxis: { axisIndex: number, axis: [number, number, number], axisSign: number, penetration: number } | null = null;
   
@@ -694,7 +688,7 @@ function getMinimumSeparatingAxis(collider1: Cube, collider2: Cube): { axisIndex
 
   const distanceSquared = centerToCenter[0]*centerToCenter[0] + centerToCenter[1]*centerToCenter[1] + centerToCenter[2]*centerToCenter[2];
   const halfSize = collider1.size / 2 + collider2.size / 2;
-  const boundingSphereSquared = halfSize * halfSize * 1.8; // 1.8 may need to be adjusted
+  const boundingSphereSquared = halfSize * halfSize * Math.sqrt(3); // sqrt(3) is the maximum distance between two points on a cube
   
   if(distanceSquared > boundingSphereSquared) return null;
   
@@ -734,7 +728,7 @@ function getMinimumSeparatingAxis(collider1: Cube, collider2: Cube): { axisIndex
       ] as [number, number, number];
 
       let magnitudeSquared = separatingAxis[0] * separatingAxis[0] + separatingAxis[1] * separatingAxis[1] + separatingAxis[2] * separatingAxis[2];
-      if(magnitudeSquared < 0.0001) continue; // The axes are parallel
+      if(magnitudeSquared < 0.001) continue; // The axes are parallel
 
       const magnitude = Math.sqrt(magnitudeSquared);
 
@@ -816,6 +810,11 @@ function getCollisions(collider1: Cube, collider2: Cube) {
 
     let vertex = getVertexFromAxisSigns(sign0, sign1, sign2);
 
+    // Add a highlight to the vertex
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+    mesh.position.set(collider2.vertices[vertex][0], collider2.vertices[vertex][1], collider2.vertices[vertex][2]);
+    scene.add(mesh);
+
     const collision = Collision.cubeFaceCubePoint(collider1, collider2, vertex, minAxisX, minAxisY, minAxisZ, collider2.vertices[vertex], normalX, normalY, normalZ);
     addCollision(collision);
   } else if(minimumSeparatingAxis.axisIndex < 6) {
@@ -843,6 +842,11 @@ function getCollisions(collider1: Cube, collider2: Cube) {
     let sign2 = minAxisX * axis2[0] + minAxisY * axis2[1] + minAxisZ * axis2[2];
 
     let vertex = getVertexFromAxisSigns(sign0, sign1, sign2);
+    
+    // Add a highlight to the vertex
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial({ color: 0x00FF00 }));
+    mesh.position.set(collider1.vertices[vertex][0], collider1.vertices[vertex][1], collider1.vertices[vertex][2]);
+    scene.add(mesh);
 
     const collision = Collision.cubeFaceCubePoint(collider2, collider1, vertex, normalX, normalY, normalZ, collider1.vertices[vertex], minAxisX, minAxisY, minAxisZ);
     addCollision(collision);
@@ -1016,7 +1020,7 @@ function handleCollisionImpulse(collision: Collision) {
   if(contactVelocityY > cancelRestitution) restitution = 0;
 
   let desiredVelocityX = -contactVelocityX;
-  let desiredVelocityY = -(contactVelocityY * restitution) - contactVelocityY;
+  let desiredVelocityY = (-contactVelocityY * restitution) - contactVelocityY;
   let desiredVelocityZ = -contactVelocityZ;
 
   // Transform the desired closing velocity back to world coordinates
@@ -1047,18 +1051,18 @@ function handleCollisionImpulse(collision: Collision) {
   let impulseY = (collision.contactTransform10 * contactImpulseX + collision.contactTransform11 * contactImpulseY + collision.contactTransform12 * contactImpulseZ);
   let impulseZ = (collision.contactTransform20 * contactImpulseX + collision.contactTransform21 * contactImpulseY + collision.contactTransform22 * contactImpulseZ);
   
-  applyImpulse(collision.collider1, collision.worldX, collision.worldY, collision.worldZ, impulseX, impulseY, impulseZ, true);
+  applyImpulse(collision.collider1, collision.worldX, collision.worldY, collision.worldZ, impulseX, impulseY, impulseZ);
 
   if(collision.collider2) {
-    applyImpulse(collision.collider2, collision.worldX, collision.worldY, collision.worldZ, impulseX, impulseY, impulseZ, false);
+    applyImpulse(collision.collider2, collision.worldX, collision.worldY, collision.worldZ, -impulseX, -impulseY, -impulseZ);
   }
 }
 
-function applyImpulse(cube: Cube, worldX: number, worldY: number, worldZ: number, impulseX: number, impulseY: number, impulseZ: number, isPrimary: boolean) {
+function applyImpulse(cube: Cube, worldX: number, worldY: number, worldZ: number, impulseX: number, impulseY: number, impulseZ: number) {
   // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
-  cube.velocityX += impulseX * cube.inverseMass * (isPrimary ? 1 : -1);
-  cube.velocityY += impulseY * cube.inverseMass * (isPrimary ? 1 : -1);
-  cube.velocityZ += impulseZ * cube.inverseMass * (isPrimary ? 1 : -1);
+  cube.velocityX += impulseX * cube.inverseMass;
+  cube.velocityY += impulseY * cube.inverseMass;
+  cube.velocityZ += impulseZ * cube.inverseMass;
 
   const xDifference = worldX - cube.x, yDifference = worldY - cube.y, zDifference = worldZ - cube.z;
   // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
@@ -1124,15 +1128,20 @@ function resolveCollisionPenetration() {
 
 const cubes: Cube[] = [];
 const collisions: Collision[] = [];
-for(let x = -2; x <= 2; x++) for(let y = -2; y <= 2; y++) {
-  const cube = new Cube(0.1, x * 0.2, 0.2, y * 0.2);
-  cube.velocityX = Math.random() * 0.01 - 0.005;
-  cube.velocityZ = Math.random() * 0.01 - 0.005;
-  cube.rotationX = Math.random() * 0.01 - 0.005;
-  cube.rotationY = Math.random() * 0.01 - 0.005;
-  cube.rotationZ = Math.random() * 0.01 - 0.005;
-  cubes.push(cube);
-}
+// for(let x = -2; x <= 2; x++) for(let y = -2; y <= 2; y++) {
+//   const cube = new Cube(0.1, x * 0.2, 0.2, y * 0.2);
+//   cube.velocityX = Math.random() * 0.01 - 0.005;
+//   cube.velocityZ = Math.random() * 0.01 - 0.005;
+//   cube.rotationX = Math.random() * 0.01 - 0.005;
+//   cube.rotationY = Math.random() * 0.01 - 0.005;
+//   cube.rotationZ = Math.random() * 0.01 - 0.005;
+//   cubes.push(cube);
+// }
+const c1 = new Cube(0.2, 0, 0.1, 0);
+cubes.push(c1);
+const c2 = new Cube(0.2, 0.5, 0.1, 0);
+c2.velocityX = -0.01;
+cubes.push(c2);
 
 function simulate(dt: number) {
   // TODO: Actually use dt lol
@@ -1152,7 +1161,7 @@ function simulate(dt: number) {
   // Resolve collisions
   cullCollisions();
   resolveCollisionVelocity();
-  resolveCollisionPenetration();
+  // resolveCollisionPenetration();
 
   // Finalize the update
   for(let cube of cubes) {
