@@ -225,7 +225,6 @@ class Cube {
   mesh?: THREE.Mesh;
   tempMatrix3 = new THREE.Matrix3();
   tempVector3 = new THREE.Vector3();
-  tempMatrix4 = new THREE.Matrix4();
   updateRendering() {
     if(!this.mesh) return;
     this.mesh.matrixAutoUpdate = false;
@@ -234,7 +233,7 @@ class Cube {
       this.t10 * this.size, this.t11 * this.size, this.t12 * this.size,
       this.t20 * this.size, this.t21 * this.size, this.t22 * this.size
     ));
-    this.mesh.matrix.multiply(this.tempMatrix4.makeTranslation(this.tempVector3.set(this.x, this.y, this.z)));
+    this.mesh.matrix.setPosition(this.tempVector3.set(this.x, this.y, this.z));
   }
 }
 
@@ -350,18 +349,19 @@ class Collision {
     this.collider2 = collider2;
   }
 
-  static cubeFaceCubePoint(collider1: Cube, collider2: Cube, vertex: number, localNormalX: number, localNormalY: number, localNormalZ: number, vertexPosition: [number, number, number], normalX: number, normalY: number, normalZ: number) {
+  static cubeFaceCubePoint(collider1: Cube, collider2: Cube, vertex: number, localNormalX: number, localNormalY: number, localNormalZ: number, normalX: number, normalY: number, normalZ: number) {
     const collision = new Collision(CollisionType.CubeFaceCubePoint, collider1, collider2);
     collision.localNormalX = localNormalX;
     collision.localNormalY = localNormalY;
     collision.localNormalZ = localNormalZ;
-    collision.vertex = vertex;
-    collision.worldX = vertexPosition[0];
-    collision.worldY = vertexPosition[1];
-    collision.worldZ = vertexPosition[2];
     collision.normalX = normalX;
     collision.normalY = normalY;
     collision.normalZ = normalZ;
+    collision.vertex = vertex;
+    const vertexPosition = collider2.vertices[vertex];
+    collision.worldX = vertexPosition[0];
+    collision.worldY = vertexPosition[1];
+    collision.worldZ = vertexPosition[2];
     return collision;
   }
 
@@ -787,22 +787,23 @@ function getCollisions(collider1: Cube, collider2: Cube) {
 
   if(minimumSeparatingAxis.axisIndex < 3) {
     // Collider1 face, collider2 point
-    let normalX = 0, normalY = 0, normalZ = 0;
+    let minAxisSign = minimumSeparatingAxis.axisSign;
+    let localNormalX = 0, localNormalY = 0, localNormalZ = 0;
     if(minimumSeparatingAxis.axisIndex == 0) {
-      normalX = minimumSeparatingAxis.axisSign; normalY = 0; normalZ = 0;
+      localNormalX = minAxisSign; localNormalY = 0; localNormalZ = 0;
     } else if(minimumSeparatingAxis.axisIndex == 1) {
-      normalX = 0; normalY = minimumSeparatingAxis.axisSign; normalZ = 0;
+      localNormalX = 0; localNormalY = minAxisSign; localNormalZ = 0;
     } else if(minimumSeparatingAxis.axisIndex == 2) {
-      normalX = 0; normalY = 0; normalZ = minimumSeparatingAxis.axisSign;
+      localNormalX = 0; localNormalY = 0; localNormalZ = minAxisSign;
     }
 
     const axis0 = collider1.axes[0];
     const axis1 = collider1.axes[1];
     const axis2 = collider1.axes[2];
 
-    let minAxisX = minimumSeparatingAxis.axis[0] * minimumSeparatingAxis.axisSign;
-    let minAxisY = minimumSeparatingAxis.axis[1] * minimumSeparatingAxis.axisSign;
-    let minAxisZ = minimumSeparatingAxis.axis[2] * minimumSeparatingAxis.axisSign;
+    let minAxisX = minimumSeparatingAxis.axis[0] * minAxisSign;
+    let minAxisY = minimumSeparatingAxis.axis[1] * minAxisSign;
+    let minAxisZ = minimumSeparatingAxis.axis[2] * minAxisSign;
 
     let sign0 = minAxisX * axis0[0] + minAxisY * axis0[1] + minAxisZ * axis0[2];
     let sign1 = minAxisX * axis1[0] + minAxisY * axis1[1] + minAxisZ * axis1[2];
@@ -810,23 +811,22 @@ function getCollisions(collider1: Cube, collider2: Cube) {
 
     let vertex = getVertexFromAxisSigns(sign0, sign1, sign2);
 
-    // Add a highlight to the vertex
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
-    mesh.position.set(collider2.vertices[vertex][0], collider2.vertices[vertex][1], collider2.vertices[vertex][2]);
-    scene.add(mesh);
-
-    const collision = Collision.cubeFaceCubePoint(collider1, collider2, vertex, minAxisX, minAxisY, minAxisZ, collider2.vertices[vertex], normalX, normalY, normalZ);
+    const collision = Collision.cubeFaceCubePoint(
+      collider1, collider2, vertex,
+      localNormalX, localNormalY, localNormalZ,
+      minAxisX, minAxisY, minAxisZ
+    );
     addCollision(collision);
   } else if(minimumSeparatingAxis.axisIndex < 6) {
     // Collider1 point, collider2 face
-    let minAxisSign = minimumSeparatingAxis.axisSign * -1;
-    let normalX = 0, normalY = 0, normalZ = 0;
+    let minAxisSign = -minimumSeparatingAxis.axisSign;
+    let localNormalX = 0, localNormalY = 0, localNormalZ = 0;
     if(minimumSeparatingAxis.axisIndex == 3) {
-      normalX = minimumSeparatingAxis.axisSign; normalY = 0; normalZ = 0;
+      localNormalX = minAxisSign; localNormalY = 0; localNormalZ = 0;
     } else if(minimumSeparatingAxis.axisIndex == 4) {
-      normalX = 0; normalY = minimumSeparatingAxis.axisSign; normalZ = 0;
+      localNormalX = 0; localNormalY = minAxisSign; localNormalZ = 0;
     } else if(minimumSeparatingAxis.axisIndex == 5) {
-      normalX = 0; normalY = 0; normalZ = minimumSeparatingAxis.axisSign;
+      localNormalX = 0; localNormalY = 0; localNormalZ = minAxisSign;
     }
 
     const axis0 = collider2.axes[0];
@@ -843,12 +843,11 @@ function getCollisions(collider1: Cube, collider2: Cube) {
 
     let vertex = getVertexFromAxisSigns(sign0, sign1, sign2);
     
-    // Add a highlight to the vertex
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial({ color: 0x00FF00 }));
-    mesh.position.set(collider1.vertices[vertex][0], collider1.vertices[vertex][1], collider1.vertices[vertex][2]);
-    scene.add(mesh);
-
-    const collision = Collision.cubeFaceCubePoint(collider2, collider1, vertex, normalX, normalY, normalZ, collider1.vertices[vertex], minAxisX, minAxisY, minAxisZ);
+    const collision = Collision.cubeFaceCubePoint(
+      collider2, collider1, vertex,
+      localNormalX, localNormalY, localNormalZ,
+      minAxisX, minAxisY, minAxisZ
+    );
     addCollision(collision);
   } else {
     // Collider1 edge, collider2 edge
@@ -1139,8 +1138,12 @@ const collisions: Collision[] = [];
 // }
 const c1 = new Cube(0.2, 0, 0.1, 0);
 cubes.push(c1);
-const c2 = new Cube(0.2, 0.5, 0.1, 0);
-c2.velocityX = -0.01;
+const c2 = new Cube(0.2, 0.5, 0.15, 0.5);
+c2.velocityX = -0.015;
+c2.velocityZ = -0.01;
+c2.rotationX = 0.01;
+c2.rotationY = -0.01;
+c2.rotationZ = 0.01;
 cubes.push(c2);
 
 function simulate(dt: number) {
@@ -1161,7 +1164,7 @@ function simulate(dt: number) {
   // Resolve collisions
   cullCollisions();
   resolveCollisionVelocity();
-  // resolveCollisionPenetration();
+  resolveCollisionPenetration();
 
   // Finalize the update
   for(let cube of cubes) {
