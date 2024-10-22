@@ -1033,16 +1033,17 @@ function handleCollisionImpulse(collision: Collision) {
   // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
   const maximumFrictionImpulse = contactImpulseY * friction;
 
-  if(planarImpulse > maximumFrictionImpulse) {
-    let dirX = contactImpulseX / planarImpulse;
-    let dirZ = contactImpulseZ / planarImpulse;
+  // TEMPORARY
+  // if(planarImpulse > maximumFrictionImpulse) {
+  //   let dirX = contactImpulseX / planarImpulse;
+  //   let dirZ = contactImpulseZ / planarImpulse;
 
-    // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
-    let velocityPerUnitY = collision.contactImpulseToVelocity11 + ((collision.contactImpulseToVelocity10 * dirX + collision.contactImpulseToVelocity12 * dirZ) * friction);
-    contactImpulseY = desiredVelocityY / velocityPerUnitY;
-    contactImpulseX = (dirX * friction * contactImpulseY);
-    contactImpulseZ = (dirZ * friction * contactImpulseY);
-  }
+  //   // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
+  //   let velocityPerUnitY = collision.contactImpulseToVelocity11 + (collision.contactImpulseToVelocity10 * dirX + collision.contactImpulseToVelocity12 * dirZ) * friction;
+  //   contactImpulseY = desiredVelocityY / velocityPerUnitY;
+  //   contactImpulseX = (dirX * friction * contactImpulseY);
+  //   contactImpulseZ = (dirZ * friction * contactImpulseY);
+  // }
 
   // Transform the impulse vector out of contact coordinates
   // WHEN CHANGING TO FIXED POINT: make sure to add half the precision to round properly
@@ -1127,24 +1128,34 @@ function resolveCollisionPenetration() {
 
 const cubes: Cube[] = [];
 const collisions: Collision[] = [];
-// for(let x = -2; x <= 2; x++) for(let y = -2; y <= 2; y++) {
-//   const cube = new Cube(0.1, x * 0.2, 0.2, y * 0.2);
-//   cube.velocityX = Math.random() * 0.01 - 0.005;
-//   cube.velocityZ = Math.random() * 0.01 - 0.005;
-//   cube.rotationX = Math.random() * 0.01 - 0.005;
-//   cube.rotationY = Math.random() * 0.01 - 0.005;
-//   cube.rotationZ = Math.random() * 0.01 - 0.005;
-//   cubes.push(cube);
-// }
-const c1 = new Cube(0.2, 0, 0.1, 0);
-cubes.push(c1);
-const c2 = new Cube(0.2, 0.5, 0.15, 0.5);
-c2.velocityX = -0.015;
-c2.velocityZ = -0.01;
-c2.rotationX = 0.01;
-c2.rotationY = -0.01;
-c2.rotationZ = 0.01;
-cubes.push(c2);
+for(let x = -2; x <= 2; x++) for(let y = -2; y <= 2; y++) {
+  const cube = new Cube(0.1, x * 0.2, 0.2, y * 0.2);
+  cube.velocityX = Math.random() * 0.01 - 0.005;
+  cube.velocityZ = Math.random() * 0.01 - 0.005;
+  cube.rotationX = Math.random() * 0.01 - 0.005;
+  cube.rotationY = Math.random() * 0.01 - 0.005;
+  cube.rotationZ = Math.random() * 0.01 - 0.005;
+  cubes.push(cube);
+}
+// const c1 = new Cube(0.2, 0, 0.1, 0);
+// cubes.push(c1);
+// const c2 = new Cube(0.2, 0.5, 0.15, 0.5);
+// c2.velocityX = -0.015;
+// c2.velocityZ = -0.01;
+// c2.rotationX = 0.01;
+// c2.rotationY = -0.01;
+// c2.rotationZ = 0.01;
+// cubes.push(c2);
+
+
+const debugElement = document.createElement('div');
+document.body.appendChild(debugElement);
+debugElement.style.position = 'absolute';
+debugElement.style.top = '5px';
+debugElement.style.left = '5px';
+debugElement.style.color = 'white';
+
+const debugSpheres = new Array<THREE.Mesh>();
 
 function simulate(dt: number) {
   // TODO: Actually use dt lol
@@ -1164,13 +1175,26 @@ function simulate(dt: number) {
   // Resolve collisions
   cullCollisions();
   resolveCollisionVelocity();
-  resolveCollisionPenetration();
+  // resolveCollisionPenetration();
 
   // Finalize the update
   for(let cube of cubes) {
     cube.updateRendering();
     cube.checkSleep();
   }
+
+  for(let collision of collisions) {
+    // TODO
+  }
+  for(let sphere of debugSpheres) {
+    scene.remove(sphere);
+  }
+
+  debugElement.innerText = `Collisions: ${collisions.length}
+Active collisions: ${collisions.filter(c => c.active).length}
+Sleeping cubes: ${cubes.filter(c => c.sleeping).length}
+Penetrating collisions: ${collisions.filter(c => c.penetration > 0).length}
+`;
 }
 
 for(let cube of cubes) {
